@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 import json
 import os
-from backend.automation import start_automation
+from backend.automation_main import start_automation
 from backend.utils import read_json, validate_url, apply_hover_effect, display_error, configure_grid
 
 def load_promotions():
@@ -108,10 +108,10 @@ def launch_gui():
         print(f"Order Amount: {order_amount}")
         print(f"Times to Run: {run_amount}")
 
-        # start_automation(selected_store, item_link, promotion_code, order_amount, run_amount)
+        start_automation(selected_store, item_link, promotion_code, order_amount, run_amount)
 
     # Submit button
-    action_button = tk.Button(root, text="Submit", font=("Roboto", 12, "bold"), bg="#FFD700", fg="#2C3E50", bd=0, padx=20, pady=10, relief="flat", highlightthickness=0, command=submit_action)
+    action_button = tk.Button(root, text="START", font=("Roboto", 12, "bold"), bg="#FFD700", fg="#2C3E50", bd=0, padx=20, pady=10, relief="flat", highlightthickness=0, command=submit_action)
     
     apply_hover_effect(action_button, hover_bg="#E0B800", hover_fg="#2C3E50", normal_bg="#FFD700", normal_fg="#2C3E50")
 
