@@ -1,0 +1,14 @@
+{
+    "iHerb": {
+        "promotions": ["", "40SEP", "FREESHIP", "BUY1GET1"],
+        "base_url": "https://www.iherb.com"
+    },
+    "Swanson": {
+        "promotions": ["", "10OFF", "FALLSALE", "20PERCENT"],
+        "base_url": "https://www.swansonvitamins.com"
+    },
+    "Walgreens": {
+        "promotions": ["", "WELCOME", "5OFF", "NEWBIE"],
+        "base_url": "https://www.walgreens.com"
+    }
+}
