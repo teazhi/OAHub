@@ -1,9 +1,9 @@
 import tkinter as tk
 from tkinter import ttk
-import json
 import os
 from backend.automation_main import start_automation
 from backend.utils import read_json, validate_url, apply_hover_effect, display_error, configure_grid
+import concurrent.futures
 
 def load_promotions():
     json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'promotions.json')
@@ -62,7 +62,6 @@ def launch_gui():
 
     order_amt_var = tk.StringVar()
     order_amt_dropdown = ttk.Combobox(form_frame, textvariable=order_amt_var, state="readonly", width=25)
-    order_amt_dropdown['values'] = ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
     order_amt_dropdown.grid(row=3, column=1, padx=10, pady=10, sticky="w")
 
     # Number of times to run
@@ -74,20 +73,29 @@ def launch_gui():
     run_amt_dropdown['values'] = ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
     run_amt_dropdown.grid(row=4, column=1, padx=10, pady=10, sticky="w")
 
-    def update_promotions(event):
+    def update_selection(event):
         selected_store = select_store_var.get()
+
+        # Update promotions
         if selected_store in promotions:
             promotion_dropdown['values'] = promotions[selected_store]["promotions"]
             promotion_var.set('')
 
-    # Bind the select_store_dropdown to update promotions when a store is selected
-    select_store_dropdown.bind("<<ComboboxSelected>>", update_promotions)
+        # Update order amount
+        if selected_store in promotions:
+            order_amt_dropdown['values'] = [str(i) for i in range(1, int(promotions[selected_store]["max_order_qty"]) + 1)]
+            order_amt_var.set('')
 
-    # Function to validate item link and submit the form
-    def submit_action():
+    # Bind the select_store_dropdown to update promotions when a store is selected
+    select_store_dropdown.bind("<<ComboboxSelected>>", update_selection)
+
+    # concurrency
+    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+
+    def start_action():
         # Clear any previous error message
         error_label.config(text="")
-        
+
         selected_store = select_store_var.get()
         item_link = item_link_var.get()
         promotion_code = promotion_var.get()
@@ -101,17 +109,26 @@ def launch_gui():
                 display_error(error_label, f"Error: The item link must start with {base_url}")
                 return
 
-        # Validation passed? Process data
-        print(f"Store: {selected_store}")
-        print(f"Item Link: {item_link}")
-        print(f"Promotion Code: {promotion_code}")
-        print(f"Order Amount: {order_amount}")
-        print(f"Times to Run: {run_amount}")
+        action_button.config(text="WORKING", state="disabled")
 
-        start_automation(selected_store, item_link, promotion_code, order_amount, run_amount)
+        def reset_button():
+            action_button.config(text="START", state="normal")
+
+        # Run automation in a background thread
+        def run_automation():
+            future = executor.submit(start_automation, selected_store, item_link, promotion_code, order_amount, run_amount)
+            root.after(100, check_future, future)
+
+        def check_future(future):
+            if future.done():
+                reset_button()
+            else:
+                root.after(100, check_future, future)  # Poll every 100ms if thread is still running
+
+        run_automation()  # Run the automation in a background thread
 
     # Submit button
-    action_button = tk.Button(root, text="START", font=("Roboto", 12, "bold"), bg="#FFD700", fg="#2C3E50", bd=0, padx=20, pady=10, relief="flat", highlightthickness=0, command=submit_action)
+    action_button = tk.Button(root, text="START", font=("Roboto", 12, "bold"), bg="#FFD700", fg="#2C3E50", bd=0, padx=20, pady=10, relief="flat", highlightthickness=0, command=start_action)
     
     apply_hover_effect(action_button, hover_bg="#E0B800", hover_fg="#2C3E50", normal_bg="#FFD700", normal_fg="#2C3E50")
 
