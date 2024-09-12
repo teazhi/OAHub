@@ -75,7 +75,7 @@ def create_driver(playwright):
 
     # Launch the browser with global proxy settings
     browser = playwright.chromium.launch(
-        headless=False,  # Set to True if you want headless browsing
+        headless=True,  # Set to True if you want headless browsing
         proxy=proxy
     )
 

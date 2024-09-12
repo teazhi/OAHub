@@ -1,9 +1,6 @@
-selenium
-beautifulsoup4
 requests
 lxml
 tk
 fake_useragent
-undetected_chromedriver
-selenium-wire
 blinker==1.4
+playwright

@@ -5,8 +5,8 @@ from backend.automation_main import start_automation
 from backend.utils import read_json, validate_url, apply_hover_effect, display_error, configure_grid
 import concurrent.futures
 
-def load_promotions():
-    json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'promotions.json')
+def load_stores_config():
+    json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'stores.json')
     return read_json(json_path)
 
 def launch_gui():
@@ -29,7 +29,7 @@ def launch_gui():
     error_label.grid(row=5, column=0, columnspan=2, pady=10)
 
     # Load promotions and base URLs from the JSON file
-    promotions = load_promotions()
+    stores = load_stores_config()
 
     # Select store
     select_store_label = tk.Label(form_frame, text="Select store:", bg="#2C3E50", fg="white", font=("Roboto", 12))
@@ -37,7 +37,7 @@ def launch_gui():
 
     select_store_var = tk.StringVar()
     select_store_dropdown = ttk.Combobox(form_frame, textvariable=select_store_var, state="readonly", width=25)
-    select_store_dropdown['values'] = list(promotions.keys())  # Use the keys from the promotions JSON
+    select_store_dropdown['values'] = list(stores.keys())  # Use the keys from the promotions JSON
     select_store_dropdown.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
     # Item link
@@ -77,16 +77,16 @@ def launch_gui():
         selected_store = select_store_var.get()
 
         # Update promotions
-        if selected_store in promotions:
-            promotion_dropdown['values'] = promotions[selected_store]["promotions"]
+        if selected_store in stores:
+            promotion_dropdown['values'] = stores[selected_store]["promotions"]
             promotion_var.set('')
 
         # Update order amount
-        if selected_store in promotions:
-            order_amt_dropdown['values'] = [str(i) for i in range(1, int(promotions[selected_store]["max_order_qty"]) + 1)]
+        if selected_store in stores:
+            order_amt_dropdown['values'] = [str(i) for i in range(1, int(stores[selected_store]["max_order_qty"]) + 1)]
             order_amt_var.set('')
 
-    # Bind the select_store_dropdown to update promotions when a store is selected
+    # Bind the select_store_dropdown to update promotions and order amt when a store is selected
     select_store_dropdown.bind("<<ComboboxSelected>>", update_selection)
 
     # concurrency
@@ -103,8 +103,8 @@ def launch_gui():
         run_amount = run_amt_var.get()
 
         # Validate the item link
-        if selected_store in promotions:
-            base_url = promotions[selected_store]["base_url"]
+        if selected_store in stores:
+            base_url = stores[selected_store]["base_url"]
             if not validate_url(base_url, item_link):
                 display_error(error_label, f"Error: The item link must start with {base_url}")
                 return
