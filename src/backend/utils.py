@@ -1,7 +1,6 @@
 import json
 import os
 from playwright.sync_api import Playwright, sync_playwright
-from playwright_stealth import stealth_sync
 import random
 import time
 from fake_useragent import UserAgent
@@ -28,6 +27,13 @@ def apply_hover_effect(button, hover_bg, hover_fg, normal_bg, normal_fg):
 
 def display_error(label, message):
     label.config(text=message)
+
+def random_mouse_movement(page):
+    for _ in range(10):
+        x = random.randint(0, 1280)
+        y = random.randint(0, 800)
+        page.mouse.move(x, y)
+        random_delay(0.1, 0.3)
 
 def configure_grid(root, rows, columns):
     for row in rows:
@@ -75,8 +81,9 @@ def create_driver(playwright):
 
     # Launch the browser with global proxy settings
     browser = playwright.chromium.launch(
-        headless=True,  # Set to True if you want headless browsing
-        proxy=proxy
+        headless=False,  # Set to True if you want headless browsing
+        proxy=proxy,
+        args=["--disable-web-security"]
     )
 
     # Create a new context with user agent and other settings
@@ -119,6 +126,7 @@ def create_driver(playwright):
             'Accept-Language': 'en-US,en;q=0.9',
             'Accept-Encoding': 'gzip, deflate, br',
             'Referer': 'https://www.google.com/',
+            'Content-Type': 'application/json',
             'DNT': '1',  # Do Not Track
             'Connection': 'keep-alive',
             'Upgrade-Insecure-Requests': '1'
