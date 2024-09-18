@@ -5,7 +5,7 @@ import random
 import time
 from fake_useragent import UserAgent
 
-def random_delay(min_time=0.5, max_time=1.5):
+def random_delay(min_time=0.5, max_time=2.5):
     time.sleep(random.uniform(min_time, max_time))
 
 def read_json(file_path):
@@ -51,92 +51,91 @@ def load_proxies_from_file(file_name):
         proxies = [line.strip() for line in file if line.strip()]
     return proxies
 
+def load_proxies_from_file(file_name):
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(base_dir, '..', '..', 'config', file_name)
+    
+    with open(file_path, 'r') as file:
+        proxies = [line.strip() for line in file if line.strip()]
+    return proxies
+
 def create_driver(playwright):
-    # Load proxies from file
-    proxy_list = load_proxies_from_file('proxies.txt')
-    selected_proxy = random.choice(proxy_list)
-    print(f"Using proxy: {selected_proxy}")
+    try:
+        # Load proxies from file
+        proxy_list = load_proxies_from_file('proxies.txt')
+        selected_proxy = random.choice(proxy_list)
+        print(f"Using proxy: {selected_proxy}")
 
-    proxy_ip, proxy_port, proxy_username, proxy_password = selected_proxy.split(":")
-
-    proxy = {
-        "server": f"http://{proxy_ip}:{proxy_port}",
-        "username": proxy_username,
-        "password": proxy_password
-    }
-
-    def get_mobile_user_agent():
-        return "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1"
-        # mobile_user_agents = [
-        #     "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Mobile/15E148 Safari/604.1",  # iPhone 12 Pro
-        #     "Mozilla/5.0 (Linux; Android 11; SM-G980F) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36",  # Samsung Galaxy S20
-        #     "Mozilla/5.0 (Linux; Android 11; Pixel 5 Build/RP1A.200720.011) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.120 Mobile Safari/537.36",  # Google Pixel 5
-        # ]
-        # user_agent = random.choice(mobile_user_agents)
-        # print(f"Using User-Agent: {user_agent}")
-        
-        # return user_agent
-
-    user_agent = get_mobile_user_agent()
-
-    # Launch the browser with global proxy settings
-    browser = playwright.chromium.launch(
-        headless=False,  # Set to True if you want headless browsing
-        proxy=proxy,
-        args=["--disable-web-security"]
-    )
-
-    # Create a new context with user agent and other settings
-    context = browser.new_context(
-        user_agent=user_agent,
-        viewport={"width": 390, "height": 844},  # iPhone 12 Pro resolution
-        is_mobile=True,  # Enable mobile emulation
-        device_scale_factor=3,  # Retina display scale factor
-        has_touch=True,  # Enable touch events
-        permissions=["geolocation"],
-        geolocation={"latitude": 37.7749, "longitude": -122.4194},  # Example: San Francisco
-        locale="en-US",
-        accept_downloads=True,
-        bypass_csp=True,
-        java_script_enabled=True  # Keep JavaScript enabled
-    )
-
-    # stealth_sync(context)
-
-    # Stealth mode: remove WebDriver and other detection features
-    context.add_init_script("""
-        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-        Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-        Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
-        window.chrome = { runtime: {} };  // Fake Chrome object
-        const originalQuery = window.navigator.permissions.query;
-        window.navigator.permissions.query = (parameters) => (
-            parameters.name === 'notifications' ?
-            Promise.resolve({ state: 'denied' }) :
-            originalQuery(parameters)
-        );
-        delete navigator.__proto__.webdriver;
-        delete navigator.webdriver;
-    """)
-
-    # Headers randomization
-    def random_headers(route):
-        headers = {
-            'User-Agent': user_agent,
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'Referer': 'https://www.google.com/',
-            'Content-Type': 'application/json',
-            'DNT': '1',  # Do Not Track
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
+        proxy_ip, proxy_port, proxy_username, proxy_password = selected_proxy.split(":")
+        proxy = {
+            "server": f"http://{proxy_ip}:{proxy_port}",
+            "username": proxy_username,
+            "password": proxy_password
         }
-        route.continue_(headers=headers)
 
-    # Apply random headers to each request
-    context.route("**/*", random_headers)
+        user_agent = UserAgent().random
+        print(f"Using user agent: {user_agent}")
 
-    # Create a new page
-    page = context.new_page()
+        # Launch the browser with proxy settings
+        browser = playwright.chromium.launch(
+            headless=False,
+            proxy=proxy,
+            args=[
+                "--disable-web-security",
+                "--disable-blink-features=AutomationControlled"  # Disable automation features
+            ]
+        )
 
-    return browser, context, page
+        # Create a new context with user agent and other settings
+        context = browser.new_context(
+            user_agent=user_agent,
+            viewport={"width": 1280, "height": 844},  # Example desktop resolution
+            permissions=["geolocation"],
+            geolocation={"latitude": 37.7749, "longitude": -122.4194},  # Example: San Francisco
+            locale="en-US",
+            accept_downloads=True,
+            bypass_csp=True,
+            java_script_enabled=True
+        )
+
+        # Stealth mode: remove WebDriver and other detection features
+        context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+            window.chrome = { runtime: {} };
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                Promise.resolve({ state: 'denied' }) :
+                originalQuery(parameters)
+            );
+            delete navigator.__proto__.webdriver;
+            delete navigator.webdriver;
+        """)
+
+        # Headers randomization
+        def random_headers(route):
+            headers = {
+                'User-Agent': user_agent,
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept-Encoding': 'gzip, deflate, br',
+                'Referer': 'https://www.google.com/',
+                'Content-Type': 'application/json',
+                'DNT': '1',  # Do Not Track
+                'Connection': 'keep-alive',
+                'Upgrade-Insecure-Requests': '1'
+            }
+            route.continue_(headers=headers)
+
+        # Apply random headers to each request
+        context.route("**/*", random_headers)
+
+        print("Driver created successfully")
+        page = context.new_page()
+
+        return browser, context, page
+
+    except Exception as e:
+        print(f"Error in create_driver: {e}")
+        return None, None, None
