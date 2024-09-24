@@ -13,5 +13,11 @@
         "promotions": ["", "WELCOME", "5OFF", "NEWBIE"],
         "base_url": "https://www.walgreens.com",
         "max_order_qty": "0"
+    },
+    "Petco": {
+        "promotions": ["", "idk", "kumothe goat", "NEWBIE"],
+        "base_url": "https://www.petco.com",
+        "max_order_qty": "10"
     }
+    
 }

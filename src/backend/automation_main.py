@@ -1,5 +1,7 @@
 from backend.automation.iherb_automation import automate_iherb
 from backend.automation.swanson_automation import automate_swanson
+from backend.automation.walgreens_automation import automate_walgreens
+from backend.automation.petco_automation import automate_petco
 
 def start_automation(selected_store, item_link, promotion_code, order_amount, run_amount):
     automation_details = {
@@ -14,6 +16,8 @@ def start_automation(selected_store, item_link, promotion_code, order_amount, ru
     automation_functions = {
         "iHerb": automate_iherb,
         "Swanson": automate_swanson,
+        'Walgreens': automate_walgreens,
+        "Petco": automate_petco,
     }
 
     automation_func = automation_functions[selected_store]
