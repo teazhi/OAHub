@@ -11,10 +11,9 @@ def clear_storage(page):
 def automate_iherb(item_link, promotion_code, order_amount, run_amount):
     with sync_playwright() as p:
         browser, context, page = create_driver(p)
-
+        
         try:
             page.goto(item_link)
-
             page.wait_for_load_state('networkidle')
 
             clear_storage(page)
@@ -59,4 +58,3 @@ def automate_iherb(item_link, promotion_code, order_amount, run_amount):
         finally:
             time.sleep(2)
             browser.close()
-            print("Automation has finished.")

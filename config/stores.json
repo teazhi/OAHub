@@ -7,17 +7,11 @@
     "Swanson": {
         "promotions": ["", "10OFF", "FALLSALE", "20PERCENT"],
         "base_url": "https://www.swansonvitamins.com",
-        "max_order_qty": "0"
+        "max_order_qty": "5"
     },
     "Walgreens": {
         "promotions": ["", "WELCOME", "5OFF", "NEWBIE"],
         "base_url": "https://www.walgreens.com",
-        "max_order_qty": "0"
-    },
-    "Petco": {
-        "promotions": ["", "idk", "kumothe goat", "NEWBIE"],
-        "base_url": "https://www.petco.com",
-        "max_order_qty": "10"
+        "max_order_qty": "5"
     }
-    
 }
