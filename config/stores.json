@@ -5,9 +5,9 @@
         "max_order_qty": "4"
     },
     "Swanson": {
-        "promotions": ["", "10OFF", "FALLSALE", "20PERCENT"],
+        "promotions": ["", "SHOP50", "FALLSALE", "20PERCENT"],
         "base_url": "https://www.swansonvitamins.com",
-        "max_order_qty": "5"
+        "max_order_qty": "30"
     },
     "Walgreens": {
         "promotions": ["", "WELCOME", "5OFF", "NEWBIE"],
