@@ -79,7 +79,7 @@ def create_driver(playwright):
         # Launch the browser with proxy settings
         browser = playwright.chromium.launch(
             headless=False,
-            proxy=proxy,
+            #proxy=proxy,
             args=[
                 "--disable-web-security",
                 "--disable-blink-features=AutomationControlled"  # Disable automation features
