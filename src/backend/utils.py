@@ -26,7 +26,7 @@ def apply_hover_effect(button, hover_bg, hover_fg, normal_bg, normal_fg):
     button.bind("<Leave>", off_hover)
 
 def display_error(label, message):
-    label.config(text=message)
+    label.configure(text=message)
 
 def random_mouse_movement(page):
     for _ in range(10):

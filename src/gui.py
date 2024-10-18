@@ -1,56 +1,22 @@
-import tkinter as tk
-from tkinter import ttk
+import customtkinter as ctk
 from PIL import Image, ImageDraw, ImageFont, ImageTk
 import os
 from backend.automation_main import start_automation
-from backend.utils import read_json, validate_url, apply_hover_effect, display_error, configure_grid
+from backend.utils import read_json, validate_url, display_error
 import concurrent.futures
 
 def load_stores_config():
     json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'stores.json')
     return read_json(json_path)
 
-def fade_out_image(label, canvas, img, alpha=255):
-    if alpha > 0:
-        img_with_alpha = img.copy()
-        img_with_alpha.putalpha(alpha)
-        img_tk = ImageTk.PhotoImage(img_with_alpha)
-        canvas.itemconfig(label, image=img_tk)
-        canvas.img_tk = img_tk
-        alpha -= 5
-        canvas.after(50, fade_out_image, label, canvas, img, alpha)
-    else:
-        canvas.grid_remove()
-        show_top_title_label()
-
-def show_top_title_label():
-    top_title_label = tk.Label(root, text="OAHub", font=("Roboto", 30, "bold"), bg="#2C3E50", fg="#FFD700")
-    top_title_label.grid(row=0, column=0, columnspan=2, pady=(30, 20), sticky="n")
-    reveal_gui()
-
-def reveal_gui():
-    form_frame.grid(row=1, column=0, columnspan=2, pady=20, sticky="n")
-    action_button.grid(row=3, column=0, columnspan=2, pady=30, sticky="n")
-
-def create_text_image(text, font_size, color, width=400, height=200):
-    img = Image.new("RGBA", (width, height), (44, 62, 80, 0))
-    draw = ImageDraw.Draw(img)
-    try:
-        font_path = "arial.ttf"
-        font = ImageFont.truetype(font_path, font_size)
-    except IOError:
-        font = ImageFont.load_default()
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_width, text_height = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    position = ((width - text_width) // 2, (height - text_height) // 2)
-    draw.text(position, text, font=font, fill=color)
-    return img
-
 def launch_gui():
-    global form_frame, action_button, root
-    root = tk.Tk()
+    global form_frame, action_button, root, select_store_var, promotion_dropdown, stores, promotion_var, order_amt_dropdown, run_amt_var, error_label, item_link_var, order_amt_var
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+
+    root = ctk.CTk()
     root.title("OAHub")
-    
+
     window_width = 800
     window_height = 600
     screen_width = root.winfo_screenwidth()
@@ -59,127 +25,124 @@ def launch_gui():
     position_y = int((screen_height / 2) - (window_height / 2))
     root.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")
     root.resizable(False, False)
-    root.config(bg="#2C3E50")
 
-    style = ttk.Style()
-    style.configure("TCombobox", fieldbackground="#ffffff", background="#2C3E50", font=("Roboto", 12), padding=5)
-    style.configure("TEntry", fieldbackground="#ffffff", relief="flat", font=("Roboto", 12), padding=5)
+    # Set weights for centering
+    root.grid_columnconfigure(0, weight=1)
+    root.grid_rowconfigure(0, weight=1)
+    root.grid_rowconfigure(1, weight=1)
+    root.grid_rowconfigure(2, weight=1)
 
-    canvas = tk.Canvas(root, width=window_width, height=200, bg="#2C3E50", highlightthickness=0)
-    canvas.grid(row=1, column=0, columnspan=2, sticky="n")
+    # OAHub Logo at the Top (Increased Size)
+    top_title_label = ctk.CTkLabel(root, text="OAHub", font=("Roboto", 40, "bold"))
+    top_title_label.grid(row=0, column=0, columnspan=2, pady=(40, 20), sticky="n")
 
-    text_image = create_text_image("OAHub", font_size=100, color=(255, 215, 0))
-    img_tk = ImageTk.PhotoImage(text_image)
-    text_image_label = canvas.create_image(window_width // 2, 100, image=img_tk)
-    canvas.img_tk = img_tk
-
-    root.after(1000, fade_out_image, text_image_label, canvas, text_image)
-
-    form_frame = tk.Frame(root, bg="#2C3E50")
-
-    error_label = tk.Label(root, text="", fg="red", bg="#2C3E50", font=("Roboto", 10))
-    error_label.grid(row=5, column=0, columnspan=2, pady=10)
+    form_frame = ctk.CTkFrame(root)
+    form_frame.grid(row=1, column=0, columnspan=2, pady=20, padx=20, sticky="n")
 
     stores = load_stores_config()
 
-    select_store_label = tk.Label(form_frame, text="Select store:", bg="#2C3E50", fg="white", font=("Roboto", 14))
+    # Error Label
+    error_label = ctk.CTkLabel(root, text="", fg_color="red", font=("Roboto", 10))
+    error_label.grid(row=5, column=0, columnspan=2, pady=10)
+
+    # Store Dropdown
+    select_store_label = ctk.CTkLabel(form_frame, text="Select store:", font=("Roboto", 14))
     select_store_label.grid(row=0, column=0, padx=10, pady=10, sticky="e")
 
-    select_store_var = tk.StringVar()
-    select_store_dropdown = ttk.Combobox(form_frame, textvariable=select_store_var, state="readonly", width=25, style="TCombobox")
-    select_store_dropdown['values'] = list(stores.keys())
+    select_store_var = ctk.StringVar(value="Select store...")
+    select_store_dropdown = ctk.CTkComboBox(form_frame, variable=select_store_var, values=list(stores.keys()), width=300)
     select_store_dropdown.grid(row=0, column=1, padx=10, pady=10, sticky="w")
 
-    item_link_label = tk.Label(form_frame, text="Item Link", bg="#2C3E50", fg="white", font=("Roboto", 14))
+    select_store_dropdown.configure(command=lambda _: update_selection(select_store_var.get()))
+
+    # Item Link Entry
+    item_link_label = ctk.CTkLabel(form_frame, text="Item Link:", font=("Roboto", 14))
     item_link_label.grid(row=1, column=0, padx=10, pady=10, sticky="e")
 
-    item_link_var = tk.StringVar()
-    item_link_entry = ttk.Entry(form_frame, textvariable=item_link_var, width=28, style="TEntry")
+    item_link_var = ctk.StringVar()
+    item_link_entry = ctk.CTkEntry(form_frame, textvariable=item_link_var, width=300)
     item_link_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w")
 
-    promotion_label = tk.Label(form_frame, text="Promotion:", bg="#2C3E50", fg="white", font=("Roboto", 14))
+    # Promotion Dropdown
+    promotion_label = ctk.CTkLabel(form_frame, text="Promotion:", font=("Roboto", 14))
     promotion_label.grid(row=2, column=0, padx=10, pady=10, sticky="e")
 
-    promotion_var = tk.StringVar()
-    promotion_dropdown = ttk.Combobox(form_frame, textvariable=promotion_var, state="readonly", width=25, style="TCombobox")
+    promotion_var = ctk.StringVar(value="Select promotion...")
+    promotion_dropdown = ctk.CTkComboBox(form_frame, variable=promotion_var, values=[""], width=300)
     promotion_dropdown.grid(row=2, column=1, padx=10, pady=10, sticky="w")
 
-    order_amt_label = tk.Label(form_frame, text="Order amount:", bg="#2C3E50", fg="white", font=("Roboto", 14))
+    # Order Amount Dropdown
+    order_amt_label = ctk.CTkLabel(form_frame, text="Order amount:", font=("Roboto", 14))
     order_amt_label.grid(row=3, column=0, padx=10, pady=10, sticky="e")
 
-    order_amt_var = tk.StringVar()
-    order_amt_dropdown = ttk.Combobox(form_frame, textvariable=order_amt_var, state="readonly", width=25, style="TCombobox")
+    order_amt_var = ctk.StringVar(value="Select order amount...")
+    order_amt_dropdown = ctk.CTkComboBox(form_frame, variable=order_amt_var, values=[""], width=300)
     order_amt_dropdown.grid(row=3, column=1, padx=10, pady=10, sticky="w")
 
-    run_amt_label = tk.Label(form_frame, text="Times to run:", bg="#2C3E50", fg="white", font=("Roboto", 14))
+    # Times to Run Dropdown
+    run_amt_label = ctk.CTkLabel(form_frame, text="Times to run:", font=("Roboto", 14))
     run_amt_label.grid(row=4, column=0, padx=10, pady=10, sticky="e")
 
-    run_amt_var = tk.StringVar()
-    run_amt_dropdown = ttk.Combobox(form_frame, textvariable=run_amt_var, state="readonly", width=25, style="TCombobox")
-    run_amt_dropdown['values'] = ("1", "2", "3", "4", "5", "6", "7", "8", "9", "10")
+    run_amt_var = ctk.StringVar(value="Select number of times to run")
+    run_amt_dropdown = ctk.CTkComboBox(form_frame, variable=run_amt_var, values=[str(i) for i in range(1, 11)], width=300)
     run_amt_dropdown.grid(row=4, column=1, padx=10, pady=10, sticky="w")
 
-    def update_selection(event):
-        selected_store = select_store_var.get()
-
-        if selected_store in stores:
-            promotion_dropdown['values'] = stores[selected_store]["promotions"]
-            promotion_var.set('')
-
-        if selected_store in stores:
-            order_amt_dropdown['values'] = [str(i) for i in range(1, int(stores[selected_store]["max_order_qty"]) + 1)]
-            order_amt_var.set('')
-
-    select_store_dropdown.bind("<<ComboboxSelected>>", update_selection)
-
-    executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-
-    def start_action():
-        error_label.config(text="")
-
-        selected_store = select_store_var.get()
-        item_link = item_link_var.get()
-        promotion_code = promotion_var.get()
-        order_amount = order_amt_var.get()
-        run_amount = run_amt_var.get()
-
-        if selected_store in stores:
-            base_url = stores[selected_store]["base_url"]
-            if not validate_url(base_url, item_link):
-                display_error(error_label, f"Error: The item link must start with {base_url}")
-                return
-
-        action_button.config(text="WORKING", state="disabled")
-
-        def reset_button():
-            action_button.config(text="START", state="normal")
-
-        def run_automation():
-            future = executor.submit(start_automation, selected_store, item_link, promotion_code, order_amount, run_amount)
-            root.after(100, check_future, future)
-
-        def check_future(future):
-            if future.done():
-                reset_button()
-            else:
-                root.after(100, check_future, future)
-
-        run_automation()
-
-    action_button = tk.Button(root, text="START", font=("Roboto", 12, "bold"), bg="#FFD700", fg="#2C3E50", bd=0, padx=20, pady=10, relief="flat", highlightthickness=0, command=start_action)
-    
-    apply_hover_effect(action_button, hover_bg="#E0B800", hover_fg="#2C3E50", normal_bg="#FFD700", normal_fg="#2C3E50")
-
-    form_frame.grid_remove()
-    action_button.grid_remove()
-
-    root.grid_rowconfigure(0, weight=1)
-    root.grid_rowconfigure(1, weight=1)
-    root.grid_rowconfigure(3, weight=1)
-    root.grid_columnconfigure(0, weight=1)
-    root.grid_columnconfigure(1, weight=1)
-
-    form_frame.grid_columnconfigure(0, weight=1)
-    form_frame.grid_columnconfigure(1, weight=1)
+    # Start Button
+    action_button = ctk.CTkButton(root, text="START", font=("Roboto", 12, "bold"), width=200, height=50, command=start_action)
+    action_button.grid(row=2, column=0, pady=30, sticky="n")
 
     root.mainloop()
+
+def update_selection(selected_store):
+    global stores, promotion_var, promotion_dropdown, order_amt_dropdown, order_amt_var
+
+    if selected_store in stores:
+        promotions = stores[selected_store].get("promotions", [])
+        if promotions:
+            promotion_dropdown.configure(values=promotions)
+            promotion_var.set(promotions[0])
+        else:
+            promotion_dropdown.configure(values=["Select promotion..."])
+            promotion_var.set("Select promotion...")
+
+        max_order_qty = stores[selected_store].get("max_order_qty", 1)
+        order_qty_values = [str(i) for i in range(1, int(max_order_qty) + 1)]
+        if order_qty_values:
+            order_amt_dropdown.configure(values=order_qty_values)
+            order_amt_var.set(order_qty_values[0])
+        else:
+            order_amt_dropdown.configure(values=["Select order amount..."])
+            order_amt_var.set("Select order amount...")
+
+def start_action():
+    global stores, error_label, order_amt_var
+    selected_store = select_store_var.get()
+    item_link = item_link_var.get()
+    promotion_code = promotion_var.get()
+    order_amount = order_amt_var.get()
+    run_amount = run_amt_var.get()
+
+    if selected_store in stores:
+        base_url = stores[selected_store]["base_url"]
+        if not validate_url(base_url, item_link):
+            display_error(error_label, f"Error: The item link must start with {base_url}")
+            return
+
+    action_button.configure(text="WORKING", state="disabled")
+
+    def reset_button():
+        action_button.configure(text="START", state="normal")
+
+    def run_automation():
+        future = executor.submit(start_automation, selected_store, item_link, promotion_code, order_amount, run_amount)
+        root.after(100, check_future, future)
+
+    def check_future(future):
+        if future.done():
+            reset_button()
+        else:
+            root.after(100, check_future, future)
+
+    run_automation()
+
+executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
