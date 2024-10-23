@@ -4,3 +4,6 @@ tk
 fake_useragent
 blinker==1.4
 playwright
+colorama
+beautifulsoup4
+customtkinter

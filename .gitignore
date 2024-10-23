@@ -1,4 +1,9 @@
 .venv/
 venv/
-__pycache__/
+backend/__pycache__/
 *.pyc
+<<<<<<< Updated upstream
+=======
+**/__pycache__/
+*.py[cod]
+>>>>>>> Stashed changes
