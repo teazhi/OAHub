@@ -6,11 +6,11 @@ import io
 import contextlib
 import concurrent.futures
 import json
-from wsmain import search_skus_from_file
+from tkinter import filedialog
+from wholesale import search_skus_from_file
 import re
 from backend.utils import read_json, validate_url, display_error
 from backend.automation_main import start_automation
-
 
 class DualOutput:
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
@@ -18,17 +18,25 @@ class DualOutput:
     def __init__(self, text_widget):
         self.text_widget = text_widget
         self.console = sys.stdout
-        self.text_widget.tag_config("info", foreground="cyan")
-        self.text_widget.tag_config("warning", foreground="yellow")
-        self.text_widget.tag_config("error", foreground="red")
+        bold_font = ('Courier', 10, 'bold')
+        self.text_widget.tag_config("info", foreground="cyan", font=bold_font)
+        self.text_widget.tag_config("success", foreground="green", font=bold_font)
+        self.text_widget.tag_config("warning", foreground="yellow", font=bold_font)
+        self.text_widget.tag_config("error", foreground="red", font=bold_font)
+        self.text_widget.tag_config("503", foreground="red", font=bold_font)
         self.text_widget.tag_config("default", foreground="lightgrey")
 
     def write(self, message):
         stripped_message = self.ansi_escape.sub('', message)
+        self.text_widget.configure(state="normal")
         if "[INFO]" in stripped_message:
             tag = "info"
             tag_text = "[INFO]"
             message_text = stripped_message.replace("[INFO]", "")
+        elif "[SUCCESS]" in stripped_message:
+            tag = "success"
+            tag_text = "[SUCCESS]"
+            message_text = stripped_message.replace("[SUCCESS]", "")
         elif "[WARNING]" in stripped_message:
             tag = "warning"
             tag_text = "[WARNING]"
@@ -37,6 +45,10 @@ class DualOutput:
             tag = "error"
             tag_text = "[ERROR]"
             message_text = stripped_message.replace("[ERROR]", "")
+        elif "[503]" in stripped_message:
+            tag = "503"
+            tag_text = "[503]"
+            message_text = stripped_message.replace("[503]", "")
         else:
             tag = "default"
             tag_text = ""
@@ -46,24 +58,36 @@ class DualOutput:
             self.text_widget.insert(ctk.END, tag_text, tag)
         self.text_widget.insert(ctk.END, message_text, "default")
         self.text_widget.see(ctk.END)
+        self.text_widget.configure(state="disabled")
         self.console.write(message)
 
     def flush(self):
         self.console.flush()
 
-def run_main_file(output_widget):
+def run_main_file(output_widget, sku_file_path, wholesale_button):
     dual_output = DualOutput(output_widget)
     sys.stdout = dual_output
 
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        sku_file_path = os.path.join(base_dir, 'skus.txt')
         proxies_file_path = os.path.join(base_dir, '..', 'config', 'proxies.txt')
         search_skus_from_file(sku_file_path, proxies_file_path)
     except Exception as e:
         print(f"Error: {e}")
     finally:
         sys.stdout = sys.__stdout__
+        wholesale_button.configure(text="Start", state="normal") 
+
+def select_skus_file(output_widget, selected_file_var):
+    file_path = filedialog.askopenfilename(title="Select SKU File", filetypes=(("Text Files", "*.txt"),))
+    if file_path:
+        selected_file_var.set(file_path)  # Update the label with the selected file path
+
+def start_automation_file(output_widget, selected_file_var, wholesale_button):
+    skus_file_path = selected_file_var.get()
+    if skus_file_path:
+        wholesale_button.configure(text="WORKING", state="disabled")  # Disable the button when clicked
+        Thread(target=run_main_file, args=(output_widget, skus_file_path, wholesale_button)).start()
 
 def load_stores_config():
     json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'stores.json')
@@ -121,7 +145,6 @@ def start_action():
             root.after(100, check_future, future)
 
     run_automation()
-
 
 executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
@@ -206,13 +229,20 @@ def launch_gui():
     wholesale_tab.grid_columnconfigure(0, weight=1)
     wholesale_tab.grid_rowconfigure(0, weight=1)
 
-    output_text = ctk.CTkTextbox(wholesale_tab, width=700, height=400)
+    output_text = ctk.CTkTextbox(wholesale_tab, width=700, height=400, state="disabled")
     output_text.grid(row=0, column=0, padx=10, pady=10, sticky="n")
 
+    selected_file_var = ctk.StringVar()
+
+    select_file_button = ctk.CTkButton(wholesale_tab, text="Select SKU File", font=("Roboto", 12, "bold"),
+                                       command=lambda: select_skus_file(output_text, selected_file_var))
+    select_file_button.grid(row=1, column=0, pady=20, sticky="n")
+
+    selected_file_label = ctk.CTkLabel(wholesale_tab, textvariable=selected_file_var, font=("Roboto", 12))
+    selected_file_label.grid(row=2, column=0, pady=10, sticky="n")
+
     wholesale_button = ctk.CTkButton(wholesale_tab, text="Start", font=("Roboto", 12, "bold"),
-                                     command=lambda: Thread(target=run_main_file, args=(output_text,)).start())
-    wholesale_button.grid(row=1, column=0, pady=20, sticky="n")
+                                     command=lambda: start_automation_file(output_text, selected_file_var, wholesale_button))
+    wholesale_button.grid(row=3, column=0, pady=20, sticky="n")
 
     root.mainloop()
-
-

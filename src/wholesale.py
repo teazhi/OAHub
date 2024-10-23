@@ -14,7 +14,8 @@ print(sys.executable)
 init(autoreset=True)
 
 MAX_RETRIES = 5
-OLD_SKUS_DIR = "oldskus"
+OLD_SKUS_DIR = "src/oldskus"
+SRC_DIR = "src"
 
 def load_proxies(file_path):
     proxies = []
@@ -49,6 +50,7 @@ def search_amazon_by_sku(sku, proxies, user_agent):
 
     while retries < MAX_RETRIES:
         proxy = random.choice(proxies)
+        # print(f"Proxy: {proxy}\nUser Agent: {user_agent}")
 
         headers = {
             "User-Agent": user_agent,
@@ -69,13 +71,13 @@ def search_amazon_by_sku(sku, proxies, user_agent):
                 if product_link:
                     link = "https://www.amazon.com" + product_link['href']
                     if is_valid_amazon_link(link):
-                        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Product found for SKU {sku}")
+                        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Product found!")
                         return link
                     else:
-                        print(f"{Fore.YELLOW}[WARNING]{Style.RESET_ALL} Irrelevant link found for SKU {sku}")
+                        print(f"{Fore.YELLOW}[WARNING]{Style.RESET_ALL} Irrelevant link found.")
                         return "Bad Link"
                 else:
-                    print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} No product found for SKU {sku}")
+                    print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} No product found.")
                     return "Not Found"
             elif response.status_code == 503:
                 retries += 1
@@ -89,7 +91,7 @@ def search_amazon_by_sku(sku, proxies, user_agent):
             print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} Request failed for SKU {sku} using proxy {proxy['http']}: {e}")
             return "Request Failed"
     
-    print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} Max retries reached for SKU {sku}")
+    print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} Max retries reached.")
     return "Max Retries"
 
 def get_next_file_number(directory, base_filename, extension):
@@ -109,9 +111,6 @@ def move_and_rename_files():
     new_csv_name = f"amazon_links_from_skus {next_number}.csv"
     shutil.move("amazon_links_from_skus.csv", os.path.join(OLD_SKUS_DIR, new_csv_name))
 
-    new_skus_name = f"skus {next_number}.txt"
-    shutil.move("skus.txt", os.path.join(OLD_SKUS_DIR, new_skus_name))
-
     print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Files have been renamed and moved to {OLD_SKUS_DIR}.")
 
 def search_skus_from_file(file_path, proxies_file):
@@ -122,6 +121,8 @@ def search_skus_from_file(file_path, proxies_file):
     with open(file_path, 'r') as file:
         skus = [line.strip() for line in file.readlines()]
 
+    print(f"Running finder for all {len(skus)} SKU's...")
+
     results = []
     for sku in skus:
         print(f"{Fore.MAGENTA}{'─'*40}{Style.RESET_ALL}")
@@ -130,11 +131,11 @@ def search_skus_from_file(file_path, proxies_file):
         amazon_link = search_amazon_by_sku(sku, proxies, user_agent)
         results.append({'SKU': sku, 'Amazon Link': amazon_link})
 
-        delay = random.uniform(2, 8)
+        delay = random.uniform(1, 5)
         print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} Sleeping for {delay:.2f} seconds...")
         time.sleep(delay)
 
-    print(f"{Fore.MAGENTA}{'-'*40}{Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}{'─'*40}{Style.RESET_ALL}")
 
     with open('amazon_links_from_skus.csv', mode='w', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=['SKU', 'Amazon Link'])
@@ -144,10 +145,3 @@ def search_skus_from_file(file_path, proxies_file):
     print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Search complete. Results saved to amazon_links_from_skus.csv")
 
     move_and_rename_files()
-
-if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    sku_file_path = os.path.join(base_dir, 'skus.txt')
-    proxies_file_path = os.path.join(base_dir, '..', 'config', 'proxies.txt')
-    
-    search_skus_from_file(sku_file_path, proxies_file_path)
