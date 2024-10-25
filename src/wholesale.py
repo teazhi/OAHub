@@ -41,7 +41,7 @@ def load_proxies(file_path):
 def is_valid_amazon_link(link):
     if not link.startswith("https://www.amazon.com/"):
         return False
-    if "aax-us-iad" in link or "sspa/click" in link:
+    if "aax-us-iad" in link or "sspa/click" in link or "gp/help" in link:
         return False
     return True
 
@@ -50,10 +50,10 @@ def search_amazon_by_sku(sku, proxies, user_agent):
 
     while retries < MAX_RETRIES:
         proxy = random.choice(proxies)
-        # print(f"Proxy: {proxy}\nUser Agent: {user_agent}")
+        ua = user_agent.random
 
         headers = {
-            "User-Agent": user_agent,
+            "User-Agent": ua,
             "Accept-Language": "en-US,en;q=0.9",
             "Accept-Encoding": "gzip, deflate, br",
             "Connection": "keep-alive"
@@ -63,22 +63,69 @@ def search_amazon_by_sku(sku, proxies, user_agent):
 
         try:
             response = requests.get(search_url, headers=headers, proxies=proxy, timeout=10)
-            
+
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
-                
-                product_link = soup.find('a', {'class': 'a-link-normal s-no-outline'})
-                if product_link:
+
+                # Log the first 500 characters for debugging
+                print(f"Page snippet for SKU {sku}: {response.text[:500]}")
+
+                # Primary selectors for product link and title
+                product_link = soup.select_one('a.a-link-normal.a-text-normal, a.a-link-normal.s-no-outline')
+                product_title = soup.select_one('span.a-size-medium.a-color-base.a-text-normal')
+
+                if product_link and product_title:
                     link = "https://www.amazon.com" + product_link['href']
+                    title = product_title.text.strip()
+
                     if is_valid_amazon_link(link):
-                        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Product found!")
+                        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Product found: {title}")
                         return link
                     else:
                         print(f"{Fore.YELLOW}[WARNING]{Style.RESET_ALL} Irrelevant link found.")
                         return "Bad Link"
-                else:
-                    print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} No product found.")
-                    return "Not Found"
+
+                print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} Primary search failed, trying alternative methods...")
+
+                # Alternative selectors for product link and title
+                alt_product_link = soup.select_one('a.a-link-normal, a.s-no-outline, a.s-sponsored-result, a.a-link-normal.a-text-normal')
+                alt_product_title = soup.select_one('span.a-size-base-plus.a-color-base.a-text-normal, span.a-size-medium')
+
+                if alt_product_link and alt_product_title:
+                    alt_link = "https://www.amazon.com" + alt_product_link['href']
+                    alt_title = alt_product_title.text.strip()
+
+                    if is_valid_amazon_link(alt_link):
+                        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Alternative product found: {alt_title}")
+                        return alt_link
+
+                # Last fallback: Try deeper search
+                additional_link = soup.find('a', {'class': 'a-link-normal'})
+                additional_title = soup.find('span', {'class': 'a-size-medium'})
+
+                if additional_link and additional_title:
+                    fallback_link = "https://www.amazon.com" + additional_link['href']
+                    fallback_title = additional_title.text.strip()
+
+                    if is_valid_amazon_link(fallback_link):
+                        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Fallback product found: {fallback_title}")
+                        return fallback_link
+
+                # New: Check for further nested/hidden product links
+                nested_product_link = soup.find('a', {'class': 'a-link-normal.a-text-normal'})
+                nested_product_title = soup.find('span', {'class': 'a-size-medium.a-color-secondary'})
+
+                if nested_product_link and nested_product_title:
+                    nested_link = "https://www.amazon.com" + nested_product_link['href']
+                    nested_title = nested_product_title.text.strip()
+
+                    if is_valid_amazon_link(nested_link):
+                        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Nested product found: {nested_title}")
+                        return nested_link
+
+                print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} No valid product found for SKU: {sku}.")
+                return "Not Found"
+
             elif response.status_code == 503:
                 retries += 1
                 print(f"{Fore.RED}[503]{Style.RESET_ALL} Retrying with a different proxy ({retries}/{MAX_RETRIES})...")
@@ -116,7 +163,7 @@ def move_and_rename_files():
 def search_skus_from_file(file_path, proxies_file):
     proxies = load_proxies(proxies_file)
     
-    user_agent = UserAgent().random
+    user_agent = UserAgent()
 
     with open(file_path, 'r') as file:
         skus = [line.strip() for line in file.readlines()]
@@ -125,7 +172,7 @@ def search_skus_from_file(file_path, proxies_file):
 
     results = []
     for sku in skus:
-        print(f"{Fore.MAGENTA}{'─'*40}{Style.RESET_ALL}")
+        print(f"{Fore.MAGENTA}{'─'*20}{Style.RESET_ALL}")
         print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} Searching for SKU: {sku}")
         
         amazon_link = search_amazon_by_sku(sku, proxies, user_agent)
@@ -135,7 +182,7 @@ def search_skus_from_file(file_path, proxies_file):
         print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} Sleeping for {delay:.2f} seconds...")
         time.sleep(delay)
 
-    print(f"{Fore.MAGENTA}{'─'*40}{Style.RESET_ALL}")
+    print(f"{Fore.MAGENTA}{'─'*20}{Style.RESET_ALL}")
 
     with open('amazon_links_from_skus.csv', mode='w', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=['SKU', 'Amazon Link'])

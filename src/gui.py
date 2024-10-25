@@ -197,23 +197,23 @@ def launch_gui():
     wholesale_tab.grid_columnconfigure(0, weight=1)
 
     wholesale_left_frame = ctk.CTkFrame(wholesale_tab)
-    wholesale_left_frame.grid(row=0, column=0, pady=20, padx=10)
+    wholesale_left_frame.grid(row=0, column=0, pady=20, padx=0) 
 
-    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=450, height=250, wrap="word", state="disabled")
+    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=500, height=300, wrap="word", state="disabled")
     output_textbox.pack(pady=10)
 
     wholesale_button = ctk.CTkButton(wholesale_left_frame, text="Start", command=lambda: start_automation_file(output_textbox, selected_file_var, wholesale_button), width=200, height=50)
     wholesale_button.pack(pady=20)
 
     wholesale_right_frame = ctk.CTkFrame(wholesale_tab)
-    wholesale_right_frame.grid(row=0, column=1, pady=20, padx=10)
+    wholesale_right_frame.grid(row=0, column=1, pady=20, padx=30, sticky="n")
 
     selected_file_var = ctk.StringVar()
 
     file_button = ctk.CTkButton(wholesale_right_frame, text="Select SKU File", command=lambda: select_skus_file(output_textbox, selected_file_var))
-    file_button.pack(pady=10)
+    file_button.pack(pady=5)
 
-    download_button = ctk.CTkButton(wholesale_right_frame, text="Download", command=lambda: download_amazon_links_file(output_textbox))
-    download_button.pack(pady=10)
+    download_button = ctk.CTkButton(wholesale_right_frame, text="Download\nLatest Search", command=lambda: download_amazon_links_file(output_textbox))
+    download_button.pack(pady=5)
 
     root.mainloop()
