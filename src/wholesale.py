@@ -67,10 +67,6 @@ def search_amazon_by_sku(sku, proxies, user_agent):
             if response.status_code == 200:
                 soup = BeautifulSoup(response.text, 'html.parser')
 
-                # Log the first 500 characters for debugging
-                print(f"Page snippet for SKU {sku}: {response.text[:500]}")
-
-                # Primary selectors for product link and title
                 product_link = soup.select_one('a.a-link-normal.a-text-normal, a.a-link-normal.s-no-outline')
                 product_title = soup.select_one('span.a-size-medium.a-color-base.a-text-normal')
 
@@ -87,7 +83,6 @@ def search_amazon_by_sku(sku, proxies, user_agent):
 
                 print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} Primary search failed, trying alternative methods...")
 
-                # Alternative selectors for product link and title
                 alt_product_link = soup.select_one('a.a-link-normal, a.s-no-outline, a.s-sponsored-result, a.a-link-normal.a-text-normal')
                 alt_product_title = soup.select_one('span.a-size-base-plus.a-color-base.a-text-normal, span.a-size-medium')
 
@@ -99,7 +94,6 @@ def search_amazon_by_sku(sku, proxies, user_agent):
                         print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Alternative product found: {alt_title}")
                         return alt_link
 
-                # Last fallback: Try deeper search
                 additional_link = soup.find('a', {'class': 'a-link-normal'})
                 additional_title = soup.find('span', {'class': 'a-size-medium'})
 
@@ -111,7 +105,6 @@ def search_amazon_by_sku(sku, proxies, user_agent):
                         print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Fallback product found: {fallback_title}")
                         return fallback_link
 
-                # New: Check for further nested/hidden product links
                 nested_product_link = soup.find('a', {'class': 'a-link-normal.a-text-normal'})
                 nested_product_title = soup.find('span', {'class': 'a-size-medium.a-color-secondary'})
 
@@ -160,6 +153,34 @@ def move_and_rename_files():
 
     print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Files have been renamed and moved to {OLD_SKUS_DIR}.")
 
+def get_search_results():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    oldskus_dir = os.path.join(base_dir, "oldskus")
+
+    try:
+        latest_file = max(
+            [f for f in os.listdir(oldskus_dir) if f.startswith("amazon_links_from_skus")],
+            key=lambda f: os.path.getmtime(os.path.join(oldskus_dir, f))
+        )
+        latest_file_path = os.path.join(oldskus_dir, latest_file)
+        
+        results = []
+        with open(latest_file_path, mode='r', newline='', encoding='utf-8') as file:
+            csv_reader = csv.DictReader(file)
+            for row in csv_reader:
+                results.append({
+                    'SKU': row.get('SKU', '').strip(),
+                    'Amazon Link': row.get('Amazon Link', '').strip()
+                })
+        return results
+
+    except (ValueError, FileNotFoundError):
+        print("Error: No amazon_links_from_skus file found.")
+        return []
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return []
+
 def search_skus_from_file(file_path, proxies_file):
     proxies = load_proxies(proxies_file)
     
@@ -169,6 +190,7 @@ def search_skus_from_file(file_path, proxies_file):
         skus = [line.strip() for line in file.readlines()]
 
     print(f"Running finder for all {len(skus)} SKU's...")
+    total_success = 0
 
     results = []
     for sku in skus:
@@ -178,7 +200,11 @@ def search_skus_from_file(file_path, proxies_file):
         amazon_link = search_amazon_by_sku(sku, proxies, user_agent)
         results.append({'SKU': sku, 'Amazon Link': amazon_link})
 
-        delay = random.uniform(1, 5)
+        if "amazon.com" in amazon_link:
+            total_success += 1
+        print(f"Success Count: {total_success}")
+
+        delay = random.uniform(0.5, 2)
         print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} Sleeping for {delay:.2f} seconds...")
         time.sleep(delay)
 
@@ -190,5 +216,8 @@ def search_skus_from_file(file_path, proxies_file):
         writer.writerows(results)
 
     print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Search complete. Results saved to amazon_links_from_skus.csv")
+    print("Search Results:")
+    print(f"{Fore.GREEN}{total_success}{Style.RESET_ALL} total products found.")
+    print(f"{Fore.MAGENTA}{'─'*20}{Style.RESET_ALL}")
 
     move_and_rename_files()

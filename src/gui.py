@@ -2,21 +2,18 @@ import os
 import sys
 import customtkinter as ctk
 from threading import Thread
-import io
-import contextlib
-import concurrent.futures
-import json
-import threading
-from tkinter import filedialog, messagebox
-from wholesale import search_skus_from_file
+from tkinter import filedialog, messagebox, ttk
+import webbrowser
+from wholesale import search_skus_from_file, get_search_results
 import re
-from backend.utils import read_json, validate_url, display_error
-from backend.automation_main import start_automation
 import shutil
+from backend.utils import read_json
+from backend.automation_main import start_automation
+from tksheet import Sheet
 
 class DualOutput:
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
-
+    
     def __init__(self, text_widget):
         self.text_widget = text_widget
         self.console = sys.stdout
@@ -30,31 +27,17 @@ class DualOutput:
     def write(self, message):
         stripped_message = self.ansi_escape.sub('', message)
         self.text_widget.configure(state="normal")
+        tag, tag_text, message_text = ("default", "", stripped_message)
         if "[INFO]" in stripped_message:
-            tag = "info"
-            tag_text = "[INFO]"
-            message_text = stripped_message.replace("[INFO]", "")
+            tag, tag_text, message_text = "info", "[INFO]", stripped_message.replace("[INFO]", "")
         elif "[SUCCESS]" in stripped_message:
-            tag = "success"
-            tag_text = "[SUCCESS]"
-            message_text = stripped_message.replace("[SUCCESS]", "")
+            tag, tag_text, message_text = "success", "[SUCCESS]", stripped_message.replace("[SUCCESS]", "")
         elif "[WARNING]" in stripped_message:
-            tag = "warning"
-            tag_text = "[WARNING]"
-            message_text = stripped_message.replace("[WARNING]", "")
+            tag, tag_text, message_text = "warning", "[WARNING]", stripped_message.replace("[WARNING]", "")
         elif "[ERROR]" in stripped_message:
-            tag = "error"
-            tag_text = "[ERROR]"
-            message_text = stripped_message.replace("[ERROR]", "")
+            tag, tag_text, message_text = "error", "[ERROR]", stripped_message.replace("[ERROR]", "")
         elif "[503]" in stripped_message:
-            tag = "503"
-            tag_text = "[503]"
-            message_text = stripped_message.replace("[503]", "")
-        else:
-            tag = "default"
-            tag_text = ""
-            message_text = stripped_message
-
+            tag, tag_text, message_text = "503", "[503]", stripped_message.replace("[503]", "")
         if tag_text:
             self.text_widget.insert(ctk.END, tag_text, tag)
         self.text_widget.insert(ctk.END, message_text, "default")
@@ -68,7 +51,6 @@ class DualOutput:
 def run_main_file(output_widget, sku_file_path, wholesale_button):
     dual_output = DualOutput(output_widget)
     sys.stdout = dual_output
-
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         proxies_file_path = os.path.join(base_dir, '..', 'config', 'proxies.txt')
@@ -94,12 +76,10 @@ def select_skus_file(output_textbox, selected_file_var):
 def download_amazon_links_file(output_widget):
     base_dir = os.path.dirname(os.path.abspath(__file__))
     oldskus_dir = os.path.join(base_dir, "oldskus")
-    
     try:
         latest_file = max([f for f in os.listdir(oldskus_dir) if f.startswith("amazon_links_from_skus")], key=lambda f: os.path.getmtime(os.path.join(oldskus_dir, f)))
         latest_file_path = os.path.join(oldskus_dir, latest_file)
         download_dir = filedialog.askdirectory(title="Select Download Folder")
-        
         if download_dir:
             shutil.copy(latest_file_path, os.path.join(download_dir, latest_file))
             messagebox.showinfo("Download Complete", f"Latest file {latest_file} has been downloaded successfully.")
@@ -111,7 +91,7 @@ def download_amazon_links_file(output_widget):
 def start_automation_file(output_widget, selected_file_var, wholesale_button):
     skus_file_path = selected_file_var.get()
     if skus_file_path:
-        wholesale_button.configure(text="WORKING", state="disabled") 
+        wholesale_button.configure(text="WORKING", state="disabled")
         Thread(target=run_main_file, args=(output_widget, skus_file_path, wholesale_button)).start()
 
 def load_stores_config():
@@ -120,100 +100,144 @@ def load_stores_config():
 
 def start_home_automation(button):
     button.configure(text="Working", state="disabled")
-    threading.Timer(2, lambda: button.configure(text="Start", state="normal")).start()
+    Thread(target=lambda: button.configure(text="Start", state="normal")).start()
 
 def launch_gui():
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
-
     root = ctk.CTk()
     root.title("OAHub")
-    window_width = 800
-    window_height = 600
-    screen_width = root.winfo_screenwidth()
-    screen_height = root.winfo_screenheight()
-    position_x = int((screen_width / 2) - (window_width / 2))
-    position_y = int((screen_height / 2) - (window_height / 2))
-    root.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")
-    root.resizable(False, False)
+    root.geometry("1000x700")
 
-    title_frame = ctk.CTkFrame(root)
-    title_frame.pack(pady=20)
+    def update_store_dropdown():
+        store_data = load_stores_config()
+        store_names = list(store_data.keys())
+        select_store_dropdown.configure(values=store_names)
 
-    top_title_label = ctk.CTkLabel(title_frame, text="OAHub", font=("Roboto", 40, "bold"))
-    top_title_label.pack()
+    def update_dropdown_values(store):
+        store_data = load_stores_config().get(store, {})
+        promotions = store_data.get("promotions", ["No promotions available"])
+        max_order_qty = int(store_data.get("max_order_qty", "1"))
+        order_amounts = [str(i) for i in range(1, max_order_qty + 1)]
+        promotion_dropdown.configure(values=promotions)
+        order_amount_dropdown.configure(values=order_amounts)
 
-    tab_view = ctk.CTkTabview(root, width=750, height=500)
+    ctk.CTkLabel(root, text="OAHub", font=("Roboto", 45, "bold")).pack(pady=15)
+
+    tab_view = ctk.CTkTabview(root, width=900, height=500)
     tab_view.pack(expand=True)
 
     home_tab = tab_view.add("Home")
     home_tab.grid_columnconfigure(0, weight=1)
-
     form_frame = ctk.CTkFrame(home_tab)
-    form_frame.grid(row=1, column=0, pady=20, padx=20, sticky="n")
+    form_frame.grid(row=1, column=0, pady=(5, 10), padx=30, sticky="n")
 
-    select_store_label = ctk.CTkLabel(form_frame, text="Select store:", font=("Roboto", 14))
-    select_store_label.grid(row=0, column=0, padx=10, pady=10, sticky="e")
-
+    ctk.CTkLabel(form_frame, text="Select store:", font=("Roboto", 18)).grid(row=0, column=0, padx=15, pady=15, sticky="e")
     select_store_var = ctk.StringVar(value="Select store...")
-    select_store_dropdown = ctk.CTkComboBox(form_frame, variable=select_store_var, values=["Swanson", "iHerb"], width=300)
-    select_store_dropdown.grid(row=0, column=1, padx=10, pady=10, sticky="w")
+    select_store_dropdown = ctk.CTkComboBox(form_frame, variable=select_store_var, width=400, height=40, font=("Roboto", 14))
+    select_store_dropdown.grid(row=0, column=1, padx=15, pady=15, sticky="w")
+    update_store_dropdown()
 
-    item_link_label = ctk.CTkLabel(form_frame, text="Item Link:", font=("Roboto", 14))
-    item_link_label.grid(row=1, column=0, padx=10, pady=10, sticky="e")
-
+    ctk.CTkLabel(form_frame, text="Item Link:", font=("Roboto", 18)).grid(row=1, column=0, padx=15, pady=15, sticky="e")
     item_link_var = ctk.StringVar()
-    item_link_entry = ctk.CTkEntry(form_frame, textvariable=item_link_var, width=300)
-    item_link_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w")
+    ctk.CTkEntry(form_frame, textvariable=item_link_var, width=400, height=40, font=("Roboto", 14)).grid(row=1, column=1, padx=15, pady=15, sticky="w")
 
-    promotion_label = ctk.CTkLabel(form_frame, text="Promotion:", font=("Roboto", 14))
-    promotion_label.grid(row=2, column=0, padx=10, pady=10, sticky="e")
-
+    ctk.CTkLabel(form_frame, text="Promotion:", font=("Roboto", 18)).grid(row=2, column=0, padx=15, pady=15, sticky="e")
     promotion_var = ctk.StringVar(value="Select promotion...")
-    promotion_dropdown = ctk.CTkComboBox(form_frame, variable=promotion_var, values=[""], width=300)
-    promotion_dropdown.grid(row=2, column=1, padx=10, pady=10, sticky="w")
+    promotion_dropdown = ctk.CTkComboBox(form_frame, variable=promotion_var, width=400, height=40, font=("Roboto", 14))
+    promotion_dropdown.grid(row=2, column=1, padx=15, pady=15, sticky="w")
 
-    order_amt_label = ctk.CTkLabel(form_frame, text="Order amount:", font=("Roboto", 14))
-    order_amt_label.grid(row=3, column=0, padx=10, pady=10, sticky="e")
+    ctk.CTkLabel(form_frame, text="Order amount:", font=("Roboto", 18)).grid(row=3, column=0, padx=15, pady=15, sticky="e")
+    order_amount_var = ctk.StringVar(value="Select order amount...")
+    order_amount_dropdown = ctk.CTkComboBox(form_frame, variable=order_amount_var, width=400, height=40, font=("Roboto", 14))
+    order_amount_dropdown.grid(row=3, column=1, padx=15, pady=15, sticky="w")
 
-    order_amt_var = ctk.StringVar(value="Select order amount...")
-    order_amt_dropdown = ctk.CTkComboBox(form_frame, variable=order_amt_var, values=[""], width=300)
-    order_amt_dropdown.grid(row=3, column=1, padx=10, pady=10, sticky="w")
+    ctk.CTkLabel(form_frame, text="Times to run:", font=("Roboto", 18)).grid(row=4, column=0, padx=15, pady=15, sticky="e")
+    times_to_run_var = ctk.StringVar(value="Select number of times to run")
+    times_to_run_dropdown = ctk.CTkComboBox(form_frame, variable=times_to_run_var, values=["1", "2", "3", "4", "5"], width=400, height=40, font=("Roboto", 14))
+    times_to_run_dropdown.grid(row=4, column=1, padx=15, pady=15, sticky="w")
 
-    run_amt_label = ctk.CTkLabel(form_frame, text="Times to run:", font=("Roboto", 14))
-    run_amt_label.grid(row=4, column=0, padx=10, pady=10, sticky="e")
-
-    run_amt_var = ctk.StringVar(value="Select number of times to run")
-    run_amt_dropdown = ctk.CTkComboBox(form_frame, variable=run_amt_var, values=[str(i) for i in range(1, 11)], width=300)
-    run_amt_dropdown.grid(row=4, column=1, padx=10, pady=10, sticky="w")
-
-    action_button = ctk.CTkButton(home_tab, text="Start", command=lambda: start_home_automation(action_button), width=200, height=50, font=("Roboto", 12, "bold"))
-    action_button.grid(row=2, column=0, pady=20)
-
-    error_label = ctk.CTkLabel(home_tab, text="", font=("Roboto", 12), text_color="red")
-    error_label.grid(row=3, column=0, pady=5)
+    start_button = ctk.CTkButton(form_frame, text="Start", font=("Roboto", 18), width=200, height=50, command=lambda: start_home_automation(start_button))
+    start_button.grid(row=5, column=0, columnspan=2, pady=(20, 10))
 
     wholesale_tab = tab_view.add("Wholesale")
     wholesale_tab.grid_columnconfigure(0, weight=1)
-
     wholesale_left_frame = ctk.CTkFrame(wholesale_tab)
-    wholesale_left_frame.grid(row=0, column=0, pady=20, padx=0) 
+    wholesale_left_frame.grid(row=0, column=0, padx=(20, 10), pady=20, sticky="nsew")
 
-    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=500, height=300, wrap="word", state="disabled")
-    output_textbox.pack(pady=10)
+    results_frame = ctk.CTkFrame(wholesale_tab, width=400)
+    results_frame.grid(row=0, column=1, padx=(10, 20), pady=20, sticky="nsew")
+    wholesale_tab.grid_columnconfigure(1, weight=1)
 
-    wholesale_button = ctk.CTkButton(wholesale_left_frame, text="Start", command=lambda: start_automation_file(output_textbox, selected_file_var, wholesale_button), width=200, height=50)
-    wholesale_button.pack(pady=20)
+    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=400, height=300, font=("Roboto", 12))
+    output_textbox.grid(row=0, column=0, columnspan=2, pady=(5, 10), padx=15)
+    output_textbox.configure(state="disabled")
 
-    wholesale_right_frame = ctk.CTkFrame(wholesale_tab)
-    wholesale_right_frame.grid(row=0, column=1, pady=20, padx=30, sticky="n")
-
+    button_width = 180  
     selected_file_var = ctk.StringVar()
 
-    file_button = ctk.CTkButton(wholesale_right_frame, text="Select SKU File", command=lambda: select_skus_file(output_textbox, selected_file_var))
-    file_button.pack(pady=5)
+    select_file_button = ctk.CTkButton(
+        wholesale_left_frame, text="Select SKU File", width=button_width, anchor="center",
+        command=lambda: select_skus_file(output_textbox, selected_file_var)
+    )
+    select_file_button.grid(row=1, column=0, padx=10, pady=5)
 
-    download_button = ctk.CTkButton(wholesale_right_frame, text="Download\nLatest Search", command=lambda: download_amazon_links_file(output_textbox))
-    download_button.pack(pady=5)
+    download_button = ctk.CTkButton(
+        wholesale_left_frame, text="Download Latest Search", width=button_width, anchor="center",
+        command=lambda: download_amazon_links_file(output_textbox)
+    )
+    download_button.grid(row=2, column=0, padx=10, pady=5)
 
+    wholesale_start_button = ctk.CTkButton(
+        wholesale_left_frame, text="Start", width=button_width, anchor="center",
+        command=lambda: start_automation_file(output_textbox, selected_file_var, wholesale_start_button)
+    )
+    wholesale_start_button.grid(row=3, column=0, padx=10, pady=5)
+
+    show_results_button = ctk.CTkButton(
+        wholesale_left_frame, text="Show Results", width=button_width, anchor="center",
+        command=lambda: display_results_table(get_search_results())
+    )
+    show_results_button.grid(row=4, column=0, padx=10, pady=5)
+
+    wholesale_left_frame.grid_columnconfigure(0, weight=1)
+
+
+    table_frame = ctk.CTkFrame(results_frame)
+    table_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=5)
+
+    results_table = ttk.Treeview(table_frame, columns=("SKU", "Amazon Link"), show="headings", height=15)
+    results_table.heading("SKU", text="SKU")
+    results_table.heading("Amazon Link", text="Amazon Link")
+    results_table.column("SKU", anchor="center", width=200)
+    results_table.column("Amazon Link", anchor="center", width=200)
+    results_table.grid(row=0, column=0, sticky="nsew")
+
+    scrollbar = ttk.Scrollbar(table_frame, orient="vertical", command=results_table.yview)
+    results_table.configure(yscroll=scrollbar.set)
+    scrollbar.grid(row=0, column=1, sticky="ns")
+
+    def display_results_table(results):
+        for widget in results_frame.winfo_children():
+            widget.destroy()
+        data = [[item["SKU"], item["Amazon Link"] if item["Amazon Link"] not in ["Not Found", "Bad Link"] else item["Amazon Link"]] for item in results]
+        sheet = Sheet(results_frame, headers=["SKU", "Amazon Link"], data=data, width=500, height=400)
+        sheet.enable_bindings("single_select", "column_select", "row_select", "cell_select", "copy")
+        sheet.set_options(header_background="#444444", header_foreground="cyan", index_background="#333333", index_foreground="white", top_left_background="#333333", table_bg="#222222", table_fg="white", selected_cells_border_fg="cyan", selected_cells_bg="#555555", selected_cells_fg="white", table_selected_rows_bg="#444444", table_selected_rows_fg="white")
+        sheet.grid(row=0, column=0, sticky="nsew")
+        results_frame.grid_columnconfigure(0, weight=1)
+        results_frame.grid_rowconfigure(0, weight=1)
+
+        def open_link(event):
+            selected = sheet.get_currently_selected()
+            if selected:
+                row, col = selected[0], selected[1]
+                if col == 1:
+                    link_text = sheet.get_cell_data(row, col)
+                    if link_text.startswith("https://www.amazon.com"):
+                        webbrowser.open(link_text)
+
+        sheet.bind("<Double-1>", open_link)
+
+    select_store_dropdown.configure(command=lambda choice: update_dropdown_values(choice))
     root.mainloop()
