@@ -124,13 +124,19 @@ def launch_gui():
 
     ctk.CTkLabel(root, text="OAHub", font=("Roboto", 45, "bold")).pack(pady=15)
 
-    tab_view = ctk.CTkTabview(root, width=900, height=500)
-    tab_view.pack(expand=True)
+    tab_view = ctk.CTkTabview(root, width=900, height=580)
+    tab_view.pack(pady=(0, 20))
 
     home_tab = tab_view.add("Home")
-    home_tab.grid_columnconfigure(0, weight=1)
-    form_frame = ctk.CTkFrame(home_tab)
-    form_frame.grid(row=1, column=0, pady=(5, 10), padx=30, sticky="n")
+
+    home_wrapper = ctk.CTkFrame(home_tab, width=850, height=500, fg_color="transparent")
+    home_wrapper.pack(expand=True, padx=30, pady=20)
+    
+    form_frame = ctk.CTkFrame(home_wrapper, width=850, height=500)
+    form_frame.pack(expand=True)
+
+    form_frame.grid_columnconfigure(0, weight=1)
+    form_frame.grid_columnconfigure(1, weight=1)
 
     ctk.CTkLabel(form_frame, text="Select store:", font=("Roboto", 18)).grid(row=0, column=0, padx=15, pady=15, sticky="e")
     select_store_var = ctk.StringVar(value="Select store...")
@@ -158,58 +164,60 @@ def launch_gui():
     times_to_run_dropdown.grid(row=4, column=1, padx=15, pady=15, sticky="w")
 
     start_button = ctk.CTkButton(form_frame, text="Start", font=("Roboto", 18), width=200, height=50, command=lambda: start_home_automation(start_button))
-    start_button.grid(row=5, column=0, columnspan=2, pady=(20, 10))
+    start_button.grid(row=5, column=0, columnspan=2, pady=(20, 10), sticky="ew")
 
     wholesale_tab = tab_view.add("Wholesale")
     wholesale_tab.grid_columnconfigure(0, weight=1)
-    wholesale_left_frame = ctk.CTkFrame(wholesale_tab)
-    wholesale_left_frame.grid(row=0, column=0, padx=(20, 10), pady=20, sticky="nsew")
-
-    results_frame = ctk.CTkFrame(wholesale_tab, width=400)
-    results_frame.grid(row=0, column=1, padx=(10, 20), pady=20, sticky="nsew")
     wholesale_tab.grid_columnconfigure(1, weight=1)
 
-    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=400, height=300, font=("Roboto", 12))
-    output_textbox.grid(row=0, column=0, columnspan=2, pady=(5, 10), padx=15)
+    wholesale_left_frame = ctk.CTkFrame(wholesale_tab, width=850, height=500)
+    wholesale_left_frame.grid(row=0, column=0, padx=(20, 10), pady=20, sticky="nsew")
+
+    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=400, height=250, font=("Roboto", 12))
+    output_textbox.grid(row=0, column=0, columnspan=2, pady=(5, 15), padx=15)
     output_textbox.configure(state="disabled")
 
-    button_width = 180  
     selected_file_var = ctk.StringVar()
 
     select_file_button = ctk.CTkButton(
-        wholesale_left_frame, text="Select SKU File", width=button_width, anchor="center",
+        wholesale_left_frame, text="Select SKU File", anchor="center", width=180, height=40,
         command=lambda: select_skus_file(output_textbox, selected_file_var)
     )
-    select_file_button.grid(row=1, column=0, padx=10, pady=5)
+    select_file_button.grid(row=1, column=0, padx=(10, 5), pady=5, sticky="ew")
 
     download_button = ctk.CTkButton(
-        wholesale_left_frame, text="Download Latest Search", width=button_width, anchor="center",
+        wholesale_left_frame, text="Download Latest Search", anchor="center", width=180, height=40,
         command=lambda: download_amazon_links_file(output_textbox)
     )
-    download_button.grid(row=2, column=0, padx=10, pady=5)
+    download_button.grid(row=1, column=1, padx=(5, 10), pady=5, sticky="ew")
 
     wholesale_start_button = ctk.CTkButton(
-        wholesale_left_frame, text="Start", width=button_width, anchor="center",
+        wholesale_left_frame, text="Start", anchor="center", width=380, height=40,
         command=lambda: start_automation_file(output_textbox, selected_file_var, wholesale_start_button)
     )
-    wholesale_start_button.grid(row=3, column=0, padx=10, pady=5)
+    wholesale_start_button.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
     show_results_button = ctk.CTkButton(
-        wholesale_left_frame, text="Show Results", width=button_width, anchor="center",
+        wholesale_left_frame, text="Show Results", anchor="center", width=380, height=40,
         command=lambda: display_results_table(get_search_results())
     )
-    show_results_button.grid(row=4, column=0, padx=10, pady=5)
+    show_results_button.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
-    wholesale_left_frame.grid_columnconfigure(0, weight=1)
+    results_frame = ctk.CTkFrame(wholesale_tab, width=400, height=500)
+    results_frame.grid(row=0, column=1, padx=(10, 20), pady=20, sticky="nsew")
 
-
-    table_frame = ctk.CTkFrame(results_frame)
+    table_frame = ctk.CTkFrame(results_frame, width=400, height=400)
     table_frame.grid(row=0, column=0, sticky="nsew", padx=10, pady=5)
 
-    results_table = ttk.Treeview(table_frame, columns=("SKU", "Amazon Link"), show="headings", height=15)
+    results_frame.grid_columnconfigure(0, weight=1)
+    results_frame.grid_rowconfigure(0, weight=1)
+    table_frame.grid_columnconfigure(0, weight=1)
+    table_frame.grid_rowconfigure(0, weight=1)
+
+    results_table = ttk.Treeview(table_frame, columns=("SKU", "Amazon Link"), show="headings", height=18)
     results_table.heading("SKU", text="SKU")
     results_table.heading("Amazon Link", text="Amazon Link")
-    results_table.column("SKU", anchor="center", width=200)
+    results_table.column("SKU", anchor="center", width=150)
     results_table.column("Amazon Link", anchor="center", width=200)
     results_table.grid(row=0, column=0, sticky="nsew")
 
@@ -221,7 +229,10 @@ def launch_gui():
         for widget in results_frame.winfo_children():
             widget.destroy()
         data = [[item["SKU"], item["Amazon Link"] if item["Amazon Link"] not in ["Not Found", "Bad Link"] else item["Amazon Link"]] for item in results]
-        sheet = Sheet(results_frame, headers=["SKU", "Amazon Link"], data=data, width=500, height=400)
+        sheet = Sheet(results_frame, headers=["SKU", "Amazon Link"], data=data, width=400, height=300)
+        sheet.column_width(column=0, width=150)
+        sheet.column_width(column=1, width=200)
+
         sheet.enable_bindings("single_select", "column_select", "row_select", "cell_select", "copy")
         sheet.set_options(header_background="#444444", header_foreground="cyan", index_background="#333333", index_foreground="white", top_left_background="#333333", table_bg="#222222", table_fg="white", selected_cells_border_fg="cyan", selected_cells_bg="#555555", selected_cells_fg="white", table_selected_rows_bg="#444444", table_selected_rows_fg="white")
         sheet.grid(row=0, column=0, sticky="nsew")

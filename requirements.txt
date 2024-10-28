@@ -7,3 +7,4 @@ playwright
 colorama
 beautifulsoup4
 customtkinter
+tksheet
