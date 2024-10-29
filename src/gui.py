@@ -13,6 +13,10 @@ import re
 from backend.utils import read_json, validate_url, display_error
 from backend.automation_main import start_automation
 import shutil
+from gui_components.home_tab import create_home_tab
+from gui_components.wholesale_tab import create_wholesale_tab
+from gui_components.obrowser_tab import create_obrowser_tab
+
 
 class DualOutput:
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
@@ -135,85 +139,26 @@ def launch_gui():
     position_x = int((screen_width / 2) - (window_width / 2))
     position_y = int((screen_height / 2) - (window_height / 2))
     root.geometry(f"{window_width}x{window_height}+{position_x}+{position_y}")
-    root.resizable(False, False)
+    root.resizable(True, True)
 
+    # Title frame
     title_frame = ctk.CTkFrame(root)
     title_frame.pack(pady=20)
 
     top_title_label = ctk.CTkLabel(title_frame, text="OAHub", font=("Roboto", 40, "bold"))
     top_title_label.pack()
 
+    # Tab view for different tabs
     tab_view = ctk.CTkTabview(root, width=750, height=500)
-    tab_view.pack(expand=True)
+    tab_view.pack(expand=True, fill="both")
 
-    home_tab = tab_view.add("Home")
-    home_tab.grid_columnconfigure(0, weight=1)
+    # Add Home tab from the home_tab.py
+    create_home_tab(tab_view)
 
-    form_frame = ctk.CTkFrame(home_tab)
-    form_frame.grid(row=1, column=0, pady=20, padx=20, sticky="n")
+    # Add Wholesale tab from the wholesale_tab.py
+    create_wholesale_tab(tab_view)
 
-    select_store_label = ctk.CTkLabel(form_frame, text="Select store:", font=("Roboto", 14))
-    select_store_label.grid(row=0, column=0, padx=10, pady=10, sticky="e")
-
-    select_store_var = ctk.StringVar(value="Select store...")
-    select_store_dropdown = ctk.CTkComboBox(form_frame, variable=select_store_var, values=["Swanson", "iHerb"], width=300)
-    select_store_dropdown.grid(row=0, column=1, padx=10, pady=10, sticky="w")
-
-    item_link_label = ctk.CTkLabel(form_frame, text="Item Link:", font=("Roboto", 14))
-    item_link_label.grid(row=1, column=0, padx=10, pady=10, sticky="e")
-
-    item_link_var = ctk.StringVar()
-    item_link_entry = ctk.CTkEntry(form_frame, textvariable=item_link_var, width=300)
-    item_link_entry.grid(row=1, column=1, padx=10, pady=10, sticky="w")
-
-    promotion_label = ctk.CTkLabel(form_frame, text="Promotion:", font=("Roboto", 14))
-    promotion_label.grid(row=2, column=0, padx=10, pady=10, sticky="e")
-
-    promotion_var = ctk.StringVar(value="Select promotion...")
-    promotion_dropdown = ctk.CTkComboBox(form_frame, variable=promotion_var, values=[""], width=300)
-    promotion_dropdown.grid(row=2, column=1, padx=10, pady=10, sticky="w")
-
-    order_amt_label = ctk.CTkLabel(form_frame, text="Order amount:", font=("Roboto", 14))
-    order_amt_label.grid(row=3, column=0, padx=10, pady=10, sticky="e")
-
-    order_amt_var = ctk.StringVar(value="Select order amount...")
-    order_amt_dropdown = ctk.CTkComboBox(form_frame, variable=order_amt_var, values=[""], width=300)
-    order_amt_dropdown.grid(row=3, column=1, padx=10, pady=10, sticky="w")
-
-    run_amt_label = ctk.CTkLabel(form_frame, text="Times to run:", font=("Roboto", 14))
-    run_amt_label.grid(row=4, column=0, padx=10, pady=10, sticky="e")
-
-    run_amt_var = ctk.StringVar(value="Select number of times to run")
-    run_amt_dropdown = ctk.CTkComboBox(form_frame, variable=run_amt_var, values=[str(i) for i in range(1, 11)], width=300)
-    run_amt_dropdown.grid(row=4, column=1, padx=10, pady=10, sticky="w")
-
-    action_button = ctk.CTkButton(home_tab, text="Start", command=lambda: start_home_automation(action_button), width=200, height=50, font=("Roboto", 12, "bold"))
-    action_button.grid(row=2, column=0, pady=20)
-
-    error_label = ctk.CTkLabel(home_tab, text="", font=("Roboto", 12), text_color="red")
-    error_label.grid(row=3, column=0, pady=5)
-
-    wholesale_tab = tab_view.add("Wholesale")
-    wholesale_tab.grid_columnconfigure(0, weight=1)
-
-    wholesale_left_frame = ctk.CTkFrame(wholesale_tab)
-    wholesale_left_frame.grid(row=0, column=0, pady=20, padx=0) 
-
-    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=500, height=300, wrap="word", state="disabled")
-    output_textbox.pack(pady=10)
-
-    wholesale_button = ctk.CTkButton(wholesale_left_frame, text="Start", command=lambda: start_automation_file(output_textbox, selected_file_var, wholesale_button), width=200, height=50)
-    wholesale_button.pack(pady=20)
-
-    wholesale_right_frame = ctk.CTkFrame(wholesale_tab)
-    wholesale_right_frame.grid(row=0, column=1, pady=20, padx=30, sticky="n")
-
-    selected_file_var = ctk.StringVar()
-
-    file_button = ctk.CTkButton(wholesale_right_frame, text="Select SKU File", command=lambda: select_skus_file(output_textbox, selected_file_var))
-    file_button.pack(pady=5)
-
-    download_button = ctk.CTkButton(wholesale_right_frame, text="Download\nLatest Search", command=lambda: download_amazon_links_file(output_textbox))
-    download_button.pack(pady=5)
+    # Add O-Browser tab from the obrowser_tab.py
+    create_obrowser_tab(tab_view)
 
     root.mainloop()
