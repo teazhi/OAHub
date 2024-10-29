@@ -10,6 +10,8 @@ import shutil
 from backend.utils import read_json
 from backend.automation_main import start_automation
 from tksheet import Sheet
+import fitz
+import state_manager
 
 class DualOutput:
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
@@ -49,8 +51,7 @@ class DualOutput:
         self.console.flush()
 
 def run_main_file(output_widget, sku_file_path, wholesale_button):
-    dual_output = DualOutput(output_widget)
-    sys.stdout = dual_output
+    global is_running
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         proxies_file_path = os.path.join(base_dir, '..', 'config', 'proxies.txt')
@@ -58,8 +59,8 @@ def run_main_file(output_widget, sku_file_path, wholesale_button):
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        sys.stdout = sys.__stdout__
-        wholesale_button.configure(text="Start", state="normal")
+        is_running = False
+        wholesale_button.configure(text="Start", fg_color="#1E90FF")
 
 def select_skus_file(output_textbox, selected_file_var):
     file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
@@ -72,6 +73,42 @@ def select_skus_file(output_textbox, selected_file_var):
         output_textbox.configure(state="normal")
         output_textbox.insert(ctk.END, "No file selected.\n")
         output_textbox.configure(state="disabled")
+
+extracted_skus = []
+
+def select_pdf_file(output_textbox, selected_file_var):
+    global extracted_skus
+    file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
+    if file_path:
+        try:
+            extracted_skus = extract_skus_from_pdf(file_path)
+            output_textbox.configure(state="normal")
+            output_textbox.insert(ctk.END, f"Extracted {len(extracted_skus)} SKUs from PDF.\n")
+            output_textbox.configure(state="disabled")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to process PDF: {e}")
+    else:
+        output_textbox.configure(state="normal")
+        output_textbox.insert(ctk.END, "No file selected.\n")
+        output_textbox.configure(state="disabled")
+
+def extract_skus_from_pdf(file_path):
+    skus = []
+    with fitz.open(file_path) as doc:
+        for page_num in range(doc.page_count):
+            text = doc.load_page(page_num).get_text("text")
+            skus.extend(re.findall(r'\b\d{7,14}\b', text))
+    return skus
+
+def run_sku_search_from_list(output_widget, skus, proxies_file_path, wholesale_button):
+    try:
+        from wholesale import search_skus_from_list
+        search_skus_from_list(skus, proxies_file_path)
+    except Exception as e:
+        print(f"Error: {e}")
+    finally:
+        state_manager.is_running = False
+        wholesale_button.after(100, lambda: wholesale_button.configure(text="Start", fg_color="#228B22"))
 
 def download_amazon_links_file(output_widget):
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -89,10 +126,39 @@ def download_amazon_links_file(output_widget):
         messagebox.showerror("Error", f"An error occurred: {e}")
 
 def start_automation_file(output_widget, selected_file_var, wholesale_button):
-    skus_file_path = selected_file_var.get()
-    if skus_file_path:
-        wholesale_button.configure(text="WORKING", state="disabled")
-        Thread(target=run_main_file, args=(output_widget, skus_file_path, wholesale_button)).start()
+    global extracted_skus
+    import state_manager
+
+    output_widget.configure(state="normal")
+    output_widget.delete("1.0", ctk.END)
+    output_widget.configure(state="disabled")
+
+    if not isinstance(sys.stdout, DualOutput):
+        sys.stdout = DualOutput(output_widget)
+
+    if not state_manager.is_running:
+        state_manager.is_running = True
+        wholesale_button.configure(text="STOP", fg_color="red")
+
+        skus_file_path = selected_file_var.get()
+
+        if extracted_skus:
+            proxies_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config', 'proxies.txt')
+            thread = Thread(target=run_sku_search_from_list, args=(output_widget, extracted_skus, proxies_file_path, wholesale_button))
+            thread.start()
+        elif skus_file_path:
+            thread = Thread(target=run_main_file, args=(output_widget, skus_file_path, wholesale_button))
+            thread.start()
+        else:
+            state_manager.is_running = False
+            wholesale_button.configure(text="Start", fg_color="#228B22")
+            messagebox.showwarning("Warning", "Please select a SKU file or PDF first.")
+    else:
+        state_manager.is_running = False
+        print("Process stopped by user.")
+        print("Search stopped, results not saved.")
+        wholesale_button.after(100, lambda: wholesale_button.configure(text="Start", fg_color="#228B22"))
+        sys.stdout = sys.__stdout__ 
 
 def load_stores_config():
     json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'stores.json')
@@ -108,6 +174,14 @@ def launch_gui():
     root = ctk.CTk()
     root.title("OAHub")
     root.geometry("1000x700")
+
+    window_width = 1000
+    window_height = 700
+    screen_width = root.winfo_screenwidth()
+    screen_height = root.winfo_screenheight()
+    x_position = (screen_width // 2) - (window_width // 2)
+    y_position = (screen_height // 2) - (window_height // 2)
+    root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
 
     def update_store_dropdown():
         store_data = load_stores_config()
@@ -173,7 +247,7 @@ def launch_gui():
     wholesale_left_frame = ctk.CTkFrame(wholesale_tab, width=850, height=500)
     wholesale_left_frame.grid(row=0, column=0, padx=(20, 10), pady=20, sticky="nsew")
 
-    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=400, height=250, font=("Roboto", 12))
+    output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=400, height=300, font=("Roboto", 12))
     output_textbox.grid(row=0, column=0, columnspan=2, pady=(5, 15), padx=15)
     output_textbox.configure(state="disabled")
 
@@ -191,17 +265,24 @@ def launch_gui():
     )
     download_button.grid(row=1, column=1, padx=(5, 10), pady=5, sticky="ew")
 
+    select_pdf_button = ctk.CTkButton(
+        wholesale_left_frame, text="Select PDF File", anchor="center", width=180, height=40,
+        command=lambda: select_pdf_file(output_textbox, selected_file_var)
+    )
+    select_pdf_button.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+
     wholesale_start_button = ctk.CTkButton(
         wholesale_left_frame, text="Start", anchor="center", width=380, height=40,
+        fg_color="#228B22",
         command=lambda: start_automation_file(output_textbox, selected_file_var, wholesale_start_button)
     )
-    wholesale_start_button.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+    wholesale_start_button.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
     show_results_button = ctk.CTkButton(
         wholesale_left_frame, text="Show Results", anchor="center", width=380, height=40,
         command=lambda: display_results_table(get_search_results())
     )
-    show_results_button.grid(row=3, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+    show_results_button.grid(row=4, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
     results_frame = ctk.CTkFrame(wholesale_tab, width=400, height=500)
     results_frame.grid(row=0, column=1, padx=(10, 20), pady=20, sticky="nsew")

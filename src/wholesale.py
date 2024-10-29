@@ -7,10 +7,10 @@ import time
 import random
 from fake_useragent import UserAgent
 from colorama import Fore, Style, init
-
+import state_manager
 import sys
-print(sys.executable)
 
+print(sys.executable)
 init(autoreset=True)
 
 MAX_RETRIES = 5
@@ -180,6 +180,42 @@ def get_search_results():
     except Exception as e:
         print(f"An error occurred: {e}")
         return []
+
+def search_skus_from_list(skus, proxies_file):
+    proxies = load_proxies(proxies_file)
+    user_agent = UserAgent()
+
+    print(f"Running finder for all {len(skus)} SKU's...")
+    total_success = 0
+    results = []
+
+    for sku in skus:
+        if not state_manager.is_running:
+            break
+
+        print(f"{Fore.MAGENTA}{'─'*20}{Style.RESET_ALL}")
+        print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} Searching for SKU: {sku}")
+
+        amazon_link = search_amazon_by_sku(sku, proxies, user_agent)
+        results.append({'SKU': sku, 'Amazon Link': amazon_link})
+
+        if "amazon.com" in amazon_link:
+            total_success += 1
+
+        if not state_manager.is_running:
+            break
+
+        delay = random.uniform(0.5, 2)
+        print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} Sleeping for {delay:.2f} seconds...")
+        time.sleep(delay)
+
+    if state_manager.is_running:
+        with open('amazon_links_from_skus.csv', mode='w', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=['SKU', 'Amazon Link'])
+            writer.writeheader()
+            writer.writerows(results)
+        print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Search complete. Results saved to amazon_links_from_skus.csv")
+        move_and_rename_files()
 
 def search_skus_from_file(file_path, proxies_file):
     proxies = load_proxies(proxies_file)

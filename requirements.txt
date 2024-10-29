@@ -8,3 +8,5 @@ colorama
 beautifulsoup4
 customtkinter
 tksheet
+pymupdf
+retrying
