@@ -4,7 +4,7 @@ import customtkinter as ctk
 from threading import Thread
 from tkinter import filedialog, messagebox, ttk
 import webbrowser
-from wholesale import search_skus_from_file, get_search_results
+from wholesale import search_skus_from_file, search_skus_from_list, get_search_results
 import re
 import shutil
 from backend.utils import read_json
@@ -15,7 +15,7 @@ import state_manager
 
 class DualOutput:
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
-    
+
     def __init__(self, text_widget):
         self.text_widget = text_widget
         self.console = sys.stdout
@@ -55,12 +55,15 @@ def run_main_file(output_widget, sku_file_path, wholesale_button):
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         proxies_file_path = os.path.join(base_dir, '..', 'config', 'proxies.txt')
+        print(f"Starting catalog search with path: {sku_file_path} and proxies: {proxies_file_path}")
         search_skus_from_file(sku_file_path, proxies_file_path)
+        print("Completed search_skus_from_file")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error in run_main_file: {e}")
     finally:
         is_running = False
-        wholesale_button.configure(text="Start", fg_color="#1E90FF")
+        print("Setting is_running to False in run_main_file")
+        wholesale_button.configure(text="Start", fg_color="#228B22")
 
 def select_skus_file(output_textbox, selected_file_var):
     file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
@@ -102,7 +105,6 @@ def extract_skus_from_pdf(file_path):
 
 def run_sku_search_from_list(output_widget, skus, proxies_file_path, wholesale_button):
     try:
-        from wholesale import search_skus_from_list
         search_skus_from_list(skus, proxies_file_path)
     except Exception as e:
         print(f"Error: {e}")
@@ -137,9 +139,10 @@ def start_automation_file(output_widget, selected_file_var, wholesale_button):
         sys.stdout = DualOutput(output_widget)
 
     if not state_manager.is_running:
+        print("[INFO] Starting catalog search...") 
         state_manager.is_running = True
         wholesale_button.configure(text="STOP", fg_color="red")
-
+        
         skus_file_path = selected_file_var.get()
 
         if extracted_skus:
@@ -147,18 +150,22 @@ def start_automation_file(output_widget, selected_file_var, wholesale_button):
             thread = Thread(target=run_sku_search_from_list, args=(output_widget, extracted_skus, proxies_file_path, wholesale_button))
             thread.start()
         elif skus_file_path:
+            print(f"[INFO] Selected SKU file path: {skus_file_path}")
             thread = Thread(target=run_main_file, args=(output_widget, skus_file_path, wholesale_button))
             thread.start()
         else:
             state_manager.is_running = False
+            print("[ERROR] No SKU file or PDF selected.")
             wholesale_button.configure(text="Start", fg_color="#228B22")
             messagebox.showwarning("Warning", "Please select a SKU file or PDF first.")
     else:
+        print("Stopping process...") 
         state_manager.is_running = False
-        print("Process stopped by user.")
-        print("Search stopped, results not saved.")
+        print("Process completely stopped.")
+        print("Search aborted, results not saved.")
         wholesale_button.after(100, lambda: wholesale_button.configure(text="Start", fg_color="#228B22"))
-        sys.stdout = sys.__stdout__ 
+        if isinstance(sys.stdout, DualOutput):
+            sys.stdout = sys.__stdout__
 
 def load_stores_config():
     json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'stores.json')
@@ -205,7 +212,7 @@ def launch_gui():
 
     home_wrapper = ctk.CTkFrame(home_tab, width=850, height=500, fg_color="transparent")
     home_wrapper.pack(expand=True, padx=30, pady=20)
-    
+
     form_frame = ctk.CTkFrame(home_wrapper, width=850, height=500)
     form_frame.pack(expand=True)
 
@@ -237,7 +244,7 @@ def launch_gui():
     times_to_run_dropdown = ctk.CTkComboBox(form_frame, variable=times_to_run_var, values=["1", "2", "3", "4", "5"], width=400, height=40, font=("Roboto", 14))
     times_to_run_dropdown.grid(row=4, column=1, padx=15, pady=15, sticky="w")
 
-    start_button = ctk.CTkButton(form_frame, text="Start", font=("Roboto", 18), width=200, height=50, command=lambda: start_home_automation(start_button))
+    start_button = ctk.CTkButton(form_frame, text="Start", font=("Roboto", 18), width=200, height=50, command=lambda: start_automation(start_button, select_store_var.get(), item_link_var.get(), promotion_var.get(), order_amount_var.get(), times_to_run_var.get()))
     start_button.grid(row=5, column=0, columnspan=2, pady=(20, 10), sticky="ew")
 
     wholesale_tab = tab_view.add("Wholesale")

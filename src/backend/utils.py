@@ -4,6 +4,7 @@ from playwright.sync_api import Playwright, sync_playwright
 import random
 import time
 from fake_useragent import UserAgent
+import shutil
 
 def random_delay(min_time=0.5, max_time=2.5):
     time.sleep(random.uniform(min_time, max_time))
@@ -51,12 +52,40 @@ def load_proxies_from_file(file_name):
         proxies = [line.strip() for line in file if line.strip()]
     return proxies
 
-def load_proxies_from_file(file_name):
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    file_path = os.path.join(base_dir, '..', '..', 'config', file_name)
-    
-    with open(file_path, 'r') as file:
-        proxies = [line.strip() for line in file if line.strip()]
+def is_valid_amazon_link(link):
+    return link.startswith("https://www.amazon.com/") and "aax-us-iad" not in link and "sspa/click" not in link and "gp/help" not in link
+
+def get_next_file_number(directory, base_filename, extension):
+    i = 1
+    while os.path.exists(f"{directory}/{base_filename} {i}{extension}"):
+        i += 1
+    return i
+
+def move_and_rename_files(old_sku_dir):
+    if not os.path.exists(old_sku_dir):
+        os.makedirs(old_sku_dir)
+    next_number = get_next_file_number(old_sku_dir, "amazon_links_from_skus", ".csv")
+    new_csv_name = f"amazon_links_from_skus {next_number}.csv"
+    shutil.move("amazon_links_from_skus.csv", os.path.join(old_sku_dir, new_csv_name))
+    print(f"[SUCCESS] Files have been renamed and moved to {old_sku_dir}.")
+
+def load_proxies(file_path):
+    proxies = []
+    with open(file_path, 'r') as f:
+        for line in f:
+            proxy_parts = line.strip().split(':')
+            if len(proxy_parts) == 4:
+                ip, port, username, password = proxy_parts
+                proxies.append({
+                    'http': f'http://{username}:{password}@{ip}:{port}',
+                    'https': f'https://{username}:{password}@{ip}:{port}'
+                })
+            elif len(proxy_parts) == 2:
+                ip, port = proxy_parts
+                proxies.append({
+                    'http': f'http://{ip}:{port}',
+                    'https': f'https://{ip}:{port}'
+                })
     return proxies
 
 def create_driver(playwright):

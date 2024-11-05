@@ -1,7 +1,11 @@
 from backend.automation.iherb_automation import automate_iherb
 from backend.automation.swanson_automation import automate_swanson
+from threading import Thread
 
-def start_automation(selected_store, item_link, promotion_code, order_amount, run_amount):
+def start_automation(button, selected_store, item_link, promotion_code, order_amount, run_amount):
+    button.configure(text="Working", state="disabled")
+    Thread(target=lambda: button.configure(text="Start", state="normal")).start()
+
     automation_details = {
         "Item Link": item_link, 
         "Promo Code": promotion_code, 
