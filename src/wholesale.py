@@ -16,6 +16,46 @@ MAX_RETRIES = 5
 OLD_SKUS_DIR = "src/oldskus"
 SRC_DIR = "src"
 
+def search_walmart_by_sku(sku, proxies, user_agent):
+    retries = 0
+    max_retries = 5
+    while retries < max_retries:
+        if not state_manager.is_running:
+            return "Process Stopped"
+        proxy = random.choice(proxies)
+        headers = {
+            "User-Agent": user_agent.random,
+            "Accept-Language": "en-US,en;q=0.9",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Connection": "keep-alive"
+        }
+        search_url = f"https://www.walmart.com/search/?query={sku}"
+        try:
+            response = requests.get(search_url, headers=headers, proxies=proxy, timeout=10)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                product_link = soup.select_one('a[class*="product-title-link"]')
+                if product_link:
+                    product_url = "https://www.walmart.com" + product_link['href']
+                    product_title = product_link.get_text(strip=True)
+                    print(f"[SUCCESS] Walmart Product found: {product_title} for SKU: {sku}")
+                    return product_url
+            retries += 1
+        except requests.exceptions.RequestException:
+            retries += 1
+    return "Not Found"
+
+def search_skus_on_walmart(skus, proxies_file):
+    proxies = load_proxies(proxies_file)
+    user_agent = UserAgent()
+    results = []
+    for sku in skus:
+        if not state_manager.is_running:
+            break
+        walmart_link = search_walmart_by_sku(sku, proxies, user_agent)
+        results.append({'SKU': sku, 'Walmart Link': walmart_link})
+    return results
+
 def search_amazon_by_sku(sku, proxies, user_agent):
     retries = 0
     while retries < MAX_RETRIES:
