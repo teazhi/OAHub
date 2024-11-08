@@ -4,7 +4,7 @@ import customtkinter as ctk
 from threading import Thread
 from tkinter import filedialog, messagebox, ttk
 import webbrowser
-from wholesale import search_skus_from_file, search_skus_from_list, get_search_results, search_skus_on_walmart
+from wholesale import search_skus_from_file, search_skus_from_list, get_search_results, search_skus_on_walmart_concurrently
 import re
 import shutil
 from backend.utils import read_json
@@ -179,7 +179,7 @@ def start_walmart_search(output_widget, selected_file_var, wholesale_button):
 
         if extracted_skus:
             print(f"[INFO] Using SKUs extracted from PDF file.")
-            thread = Thread(target=lambda: search_skus_on_walmart(extracted_skus, proxies_file_path))
+            thread = Thread(target=lambda: search_skus_on_walmart_concurrently(extracted_skus, proxies_file_path))
             thread.start()
         else:
             skus_file_path = selected_file_var.get()
@@ -187,7 +187,7 @@ def start_walmart_search(output_widget, selected_file_var, wholesale_button):
                 with open(skus_file_path, 'r') as file:
                     skus = [line.strip() for line in file.readlines()]
                 print(f"[INFO] Using SKUs from selected SKU text file: {skus_file_path}")
-                thread = Thread(target=lambda: search_skus_on_walmart(skus, proxies_file_path))
+                thread = Thread(target=lambda: search_skus_on_walmart_concurrently(skus, proxies_file_path))
                 thread.start()
             else:
                 state_manager.is_running = False
@@ -198,6 +198,14 @@ def start_walmart_search(output_widget, selected_file_var, wholesale_button):
         print("Stopping Walmart search...") 
         state_manager.is_running = False
         wholesale_button.after(100, lambda: wholesale_button.configure(text="Start Walmart", fg_color="#228B22"))
+
+    def check_search_completion():
+        if not state_manager.is_running:
+            wholesale_button.configure(text="Start Walmart", fg_color="#228B22")
+        else:
+            wholesale_button.after(100, check_search_completion)
+
+    check_search_completion() 
 
 def load_stores_config():
     json_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'stores.json')
@@ -353,8 +361,11 @@ def launch_gui():
     def display_results_table(results):
         for widget in results_frame.winfo_children():
             widget.destroy()
-        data = [[item["SKU"], item["Amazon Link"] if item["Amazon Link"] not in ["Not Found", "Bad Link"] else item["Amazon Link"]] for item in results]
-        sheet = Sheet(results_frame, headers=["SKU", "Amazon Link"], data=data, width=400, height=300)
+
+        link_key = "Amazon Link" if "Amazon Link" in results[0] else "Walmart Link"
+
+        data = [[item["SKU"], item[link_key] if item[link_key] not in ["Not Found", "Bad Link"] else item[link_key]] for item in results]
+        sheet = Sheet(results_frame, headers=["SKU", link_key], data=data, width=400, height=300)
         sheet.column_width(column=0, width=150)
         sheet.column_width(column=1, width=200)
 
@@ -368,10 +379,9 @@ def launch_gui():
             selected = sheet.get_currently_selected()
             if selected:
                 row, col = selected[0], selected[1]
-                if col == 1:
-                    link_text = sheet.get_cell_data(row, col)
-                    if link_text.startswith("https://www.amazon.com"):
-                        webbrowser.open(link_text)
+                link_text = sheet.get_cell_data(row, col)
+                if link_text.startswith("https://"):
+                    webbrowser.open(link_text)
 
         sheet.bind("<Double-1>", open_link)
 

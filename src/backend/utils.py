@@ -5,6 +5,7 @@ import random
 import time
 from fake_useragent import UserAgent
 import shutil
+import datetime
 
 def random_delay(min_time=0.5, max_time=2.5):
     time.sleep(random.uniform(min_time, max_time))
@@ -61,13 +62,17 @@ def get_next_file_number(directory, base_filename, extension):
         i += 1
     return i
 
-def move_and_rename_files(old_sku_dir):
-    if not os.path.exists(old_sku_dir):
-        os.makedirs(old_sku_dir)
-    next_number = get_next_file_number(old_sku_dir, "amazon_links_from_skus", ".csv")
-    new_csv_name = f"amazon_links_from_skus {next_number}.csv"
-    shutil.move("amazon_links_from_skus.csv", os.path.join(old_sku_dir, new_csv_name))
-    print(f"[SUCCESS] Files have been renamed and moved to {old_sku_dir}.")
+def move_and_rename_files(old_sku_dir, filename):
+    os.makedirs(old_sku_dir, exist_ok=True)
+    
+    base_name = os.path.splitext(filename)[0]
+    new_csv_name = f"{base_name}_{datetime.datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}.csv"
+    
+    try:
+        shutil.move(filename, os.path.join(old_sku_dir, new_csv_name))
+        print(f"[INFO] Moved {filename} to {old_sku_dir} as {new_csv_name}")
+    except FileNotFoundError:
+        print(f"[ERROR] File {filename} not found, skipping move.")
 
 def load_proxies(file_path):
     proxies = []
@@ -77,20 +82,20 @@ def load_proxies(file_path):
             if len(proxy_parts) == 4:
                 ip, port, username, password = proxy_parts
                 proxies.append({
-                    'http': f'http://{username}:{password}@{ip}:{port}',
-                    'https': f'https://{username}:{password}@{ip}:{port}'
+                    'username': username,
+                    'password': password,
+                    'address': f"{ip}:{port}"
                 })
             elif len(proxy_parts) == 2:
                 ip, port = proxy_parts
                 proxies.append({
-                    'http': f'http://{ip}:{port}',
-                    'https': f'https://{ip}:{port}'
+                    'address': f"{ip}:{port}"
                 })
     return proxies
 
+
 def create_driver(playwright):
     try:
-        # Load proxies from file
         proxy_list = load_proxies_from_file('proxies.txt')
         selected_proxy = random.choice(proxy_list)
         print(f"Using proxy: {selected_proxy}")
@@ -105,29 +110,25 @@ def create_driver(playwright):
         user_agent = UserAgent().random
         print(f"Using user agent: {user_agent}")
 
-        # Launch the browser with proxy settings
         browser = playwright.chromium.launch(
             headless=False,
             proxy=proxy,
             args=[
                 "--disable-web-security",
-                "--disable-blink-features=AutomationControlled"  # Disable automation features
+                "--disable-blink-features=AutomationControlled" 
             ]
         )
 
-        # Create a new context with user agent and other settings
         context = browser.new_context(
             user_agent=user_agent,
-            viewport={"width": 1280, "height": 844},  # Example desktop resolution
+            viewport={"width": 1280, "height": 844},
             permissions=["geolocation"],
-            geolocation={"latitude": 37.7749, "longitude": -122.4194},  # Example: San Francisco
+            geolocation={"latitude": 37.7749, "longitude": -122.4194},
             locale="en-US",
             accept_downloads=True,
             bypass_csp=True,
             java_script_enabled=True
         )
-
-        # Stealth mode: remove WebDriver and other detection features
         context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
             Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
@@ -143,7 +144,6 @@ def create_driver(playwright):
             delete navigator.webdriver;
         """)
 
-        # Headers randomization
         def random_headers(route):
             headers = {
                 'User-Agent': user_agent,
@@ -151,13 +151,12 @@ def create_driver(playwright):
                 'Accept-Encoding': 'gzip, deflate, br',
                 'Referer': 'https://www.google.com/',
                 'Content-Type': 'application/json',
-                'DNT': '1',  # Do Not Track
+                'DNT': '1',
                 'Connection': 'keep-alive',
                 'Upgrade-Insecure-Requests': '1'
             }
             route.continue_(headers=headers)
 
-        # Apply random headers to each request
         context.route("**/*", random_headers)
 
         print("Driver created successfully")
