@@ -126,6 +126,7 @@ def start_home_automation(button):
     button.configure(text="Working", state="disabled")
     threading.Timer(2, lambda: button.configure(text="Start", state="normal")).start()
 
+
 def launch_gui():
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
