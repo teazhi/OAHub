@@ -4,7 +4,7 @@ import customtkinter as ctk
 from threading import Thread
 from tkinter import filedialog, messagebox, ttk
 import webbrowser
-from wholesale import search_skus_from_file, search_skus_from_list, get_search_results, search_skus_on_walmart_concurrently
+from wholesale import search_skus_on_amazon, get_search_results, walmart_search_concurrently
 import re
 import shutil
 from backend.utils import read_json
@@ -55,15 +55,16 @@ def run_main_file(output_widget, sku_file_path, wholesale_button):
     try:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         proxies_file_path = os.path.join(base_dir, '..', 'config', 'proxies.txt')
-        print(f"Starting catalog search with path: {sku_file_path} and proxies: {proxies_file_path}")
-        search_skus_from_file(sku_file_path, proxies_file_path)
-        print("Completed search_skus_from_file")
+        print(f"Starting Amazon search with path: {sku_file_path} and proxies: {proxies_file_path}")
+
+        search_skus_on_amazon(file_path=sku_file_path, proxies_file=proxies_file_path)
+        print("Completed search_skus_on_amazon with file path")
     except Exception as e:
         print(f"Error in run_main_file: {e}")
     finally:
         is_running = False
         print("Setting is_running to False in run_main_file")
-        wholesale_button.configure(text="Start", fg_color="#228B22")
+        wholesale_button.configure(fg_color="#228B22")
 
 def select_skus_file(output_textbox, selected_file_var):
     file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
@@ -105,12 +106,15 @@ def extract_skus_from_pdf(file_path):
 
 def run_sku_search_from_list(output_widget, skus, proxies_file_path, wholesale_button):
     try:
-        search_skus_from_list(skus, proxies_file_path)
+        print("Starting Amazon search with SKU list.")
+        
+        search_skus_on_amazon(skus=skus, proxies_file=proxies_file_path)
+        print("Completed search_skus_on_amazon with SKU list")
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error in run_sku_search_from_list: {e}")
     finally:
         state_manager.is_running = False
-        wholesale_button.after(100, lambda: wholesale_button.configure(text="Start", fg_color="#228B22"))
+        wholesale_button.after(100, lambda: wholesale_button.configure(text="Start Amazon", fg_color="#228B22"))
 
 def download_amazon_links_file(output_widget):
     base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -137,29 +141,39 @@ def start_amazon_search(output_widget, selected_file_var, wholesale_button):
         sys.stdout = DualOutput(output_widget)
 
     if not state_manager.is_running:
-        print("[INFO] Starting Amazon search...") 
+        print("[INFO] Starting Amazon search...")
         state_manager.is_running = True
         wholesale_button.configure(text="STOP", fg_color="red")
-        
-        skus_file_path = selected_file_var.get()
+
+        proxies_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config', 'proxies.txt')
 
         if extracted_skus:
-            proxies_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'config', 'proxies.txt')
-            thread = Thread(target=run_sku_search_from_list, args=(output_widget, extracted_skus, proxies_file_path, wholesale_button))
-            thread.start()
-        elif skus_file_path:
-            print(f"[INFO] Selected SKU file path: {skus_file_path}")
-            thread = Thread(target=run_main_file, args=(output_widget, skus_file_path, wholesale_button))
+            print("[INFO] Using SKUs extracted from PDF file.")
+            thread = Thread(target=lambda: search_skus_on_amazon(skus=extracted_skus, proxies_file=proxies_file_path))
             thread.start()
         else:
-            state_manager.is_running = False
-            print("[ERROR] No SKU file or PDF selected.")
-            wholesale_button.configure(text="Start Amazon", fg_color="#228B22")
-            messagebox.showwarning("Warning", "Please select a SKU file or PDF first.")
+            skus_file_path = selected_file_var.get()
+            if skus_file_path:
+                print(f"[INFO] Using SKUs from selected SKU text file: {skus_file_path}")
+                thread = Thread(target=lambda: search_skus_on_amazon(file_path=skus_file_path, proxies_file=proxies_file_path))
+                thread.start()
+            else:
+                state_manager.is_running = False
+                print("[ERROR] No SKU file or PDF selected.")
+                wholesale_button.configure(text="Start Amazon", fg_color="#228B22")
+                messagebox.showwarning("Warning", "Please select a SKU file or PDF first.")
     else:
-        print("Stopping Amazon search...") 
+        print("Stopping Amazon search...")
         state_manager.is_running = False
         wholesale_button.after(100, lambda: wholesale_button.configure(text="Start Amazon", fg_color="#228B22"))
+
+    def check_search_completion():
+        if not state_manager.is_running:
+            wholesale_button.configure(text="Start Amazon", fg_color="#228B22")
+        else:
+            wholesale_button.after(100, check_search_completion)
+
+    check_search_completion() 
 
 def start_walmart_search(output_widget, selected_file_var, wholesale_button):
     global extracted_skus
@@ -179,7 +193,7 @@ def start_walmart_search(output_widget, selected_file_var, wholesale_button):
 
         if extracted_skus:
             print(f"[INFO] Using SKUs extracted from PDF file.")
-            thread = Thread(target=lambda: search_skus_on_walmart_concurrently(extracted_skus, proxies_file_path))
+            thread = Thread(target=lambda: walmart_search_concurrently(extracted_skus, proxies_file_path))
             thread.start()
         else:
             skus_file_path = selected_file_var.get()
@@ -187,7 +201,7 @@ def start_walmart_search(output_widget, selected_file_var, wholesale_button):
                 with open(skus_file_path, 'r') as file:
                     skus = [line.strip() for line in file.readlines()]
                 print(f"[INFO] Using SKUs from selected SKU text file: {skus_file_path}")
-                thread = Thread(target=lambda: search_skus_on_walmart_concurrently(skus, proxies_file_path))
+                thread = Thread(target=lambda: walmart_search_concurrently(skus, proxies_file_path))
                 thread.start()
             else:
                 state_manager.is_running = False
@@ -195,7 +209,7 @@ def start_walmart_search(output_widget, selected_file_var, wholesale_button):
                 wholesale_button.configure(text="Start Walmart", fg_color="#228B22")
                 messagebox.showwarning("Warning", "Please select a SKU file or PDF first.")
     else:
-        print("Stopping Walmart search...") 
+        print("Stopping Walmart search...")
         state_manager.is_running = False
         wholesale_button.after(100, lambda: wholesale_button.configure(text="Start Walmart", fg_color="#228B22"))
 
@@ -319,16 +333,16 @@ def launch_gui():
     select_pdf_button.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
 
     wholesale_amazon_button = ctk.CTkButton(
-    wholesale_left_frame, text="Start Amazon", anchor="center", width=180, height=40,
+    wholesale_left_frame, text="Start Amazon", anchor="center", width=180, height=40, fg_color="#228B22",
         command=lambda: start_amazon_search(output_textbox, selected_file_var, wholesale_amazon_button)
     )
-    wholesale_amazon_button.grid(row=3, column=0, padx=10, pady=5, sticky="ew")
+    wholesale_amazon_button.grid(row=3, column=0, padx=(10, 5), pady=5, sticky="ew")
 
     wholesale_walmart_button = ctk.CTkButton(
-        wholesale_left_frame, text="Start Walmart", anchor="center", width=180, height=40,
+        wholesale_left_frame, text="Start Walmart", anchor="center", width=180, height=40, fg_color="#228B22",
         command=lambda: start_walmart_search(output_textbox, selected_file_var, wholesale_walmart_button)
     )
-    wholesale_walmart_button.grid(row=3, column=1, padx=10, pady=5, sticky="ew")
+    wholesale_walmart_button.grid(row=3, column=1, padx=(5, 10), pady=5, sticky="ew")
 
     show_results_button = ctk.CTkButton(
         wholesale_left_frame, text="Show Results", anchor="center", width=380, height=40,

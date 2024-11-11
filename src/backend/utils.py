@@ -6,6 +6,7 @@ import time
 from fake_useragent import UserAgent
 import shutil
 import datetime
+import urllib.parse
 
 def random_delay(min_time=0.5, max_time=2.5):
     time.sleep(random.uniform(min_time, max_time))
@@ -73,6 +74,28 @@ def move_and_rename_files(old_sku_dir, filename):
         print(f"[INFO] Moved {filename} to {old_sku_dir} as {new_csv_name}")
     except FileNotFoundError:
         print(f"[ERROR] File {filename} not found, skipping move.")
+
+def get_proxy_and_headers(proxies, user_agent):
+    proxy_config = random.choice(proxies)
+    headers = {
+        "User-Agent": user_agent.random,
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Connection": "keep-alive"
+    }
+    
+    if 'username' in proxy_config and 'password' in proxy_config:
+        proxy = {
+            'http': f"http://{proxy_config['username']}:{urllib.parse.quote(proxy_config['password'])}@{proxy_config['address']}",
+            'https': f"http://{proxy_config['username']}:{urllib.parse.quote(proxy_config['password'])}@{proxy_config['address']}"
+        }
+    else:
+        proxy = {
+            'http': f"http://{proxy_config['address']}",
+            'https': f"http://{proxy_config['address']}"
+        }
+        
+    return proxy, headers
 
 def load_proxies(file_path):
     proxies = []

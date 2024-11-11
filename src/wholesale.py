@@ -2,20 +2,42 @@ import os
 import requests
 from bs4 import BeautifulSoup
 import csv
-import random
-import time
-import urllib.parse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fake_useragent import UserAgent
 from colorama import Fore, Style, init
 
 import state_manager
-from backend.utils import load_proxies, is_valid_amazon_link, move_and_rename_files
+from backend.utils import load_proxies, is_valid_amazon_link, move_and_rename_files, get_proxy_and_headers
 
 init(autoreset=True)
 
 MAX_RETRIES = 5
 OLD_SKUS_DIR = "src/oldskus"
+
+def concurrent_sku_search(skus, proxies_file, search_function, link_key, max_workers=5):
+    proxies = load_proxies(proxies_file)
+    user_agent = UserAgent()
+    results = []
+
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        future_to_sku = {executor.submit(search_function, sku, proxies, user_agent): sku for sku in skus}
+
+        for future in as_completed(future_to_sku):
+            sku = future_to_sku[future]
+            if not state_manager.is_running:
+                break
+            try:
+                link = future.result()
+                results.append({'SKU': sku, link_key: link})
+                print(f"[{'SUCCESS' if 'Not Found' not in link else 'ERROR'}] Product {'found' if 'Not Found' not in link else 'not found'} for SKU: {sku}")
+            except Exception as e:
+                results.append({'SKU': sku, link_key: f"Error: {e}"})
+                print(f"[ERROR] Failed search for SKU {sku} - Error: {e}")
+
+    if state_manager.is_running:
+        save_search_results(results, filename_base='search_results')
+    state_manager.is_running = False
+    return results
 
 def search_walmart_by_sku(sku, proxies, user_agent):
     retries = 0
@@ -26,82 +48,33 @@ def search_walmart_by_sku(sku, proxies, user_agent):
         if not state_manager.is_running:
             return "Process Stopped"
 
-        proxy_config = random.choice(proxies)
-        headers = {
-            "User-Agent": user_agent.random,
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive"
-        }
-        proxy = {
-            'http': f"http://{proxy_config.get('username', '')}:{urllib.parse.quote(proxy_config.get('password', ''))}@{proxy_config['address']}",
-            'https': f"http://{proxy_config.get('username', '')}:{urllib.parse.quote(proxy_config.get('password', ''))}@{proxy_config['address']}"
-        } if 'username' in proxy_config and 'password' in proxy_config else {
-            'http': f"http://{proxy_config['address']}",
-            'https': f"http://{proxy_config['address']}"
-        }
+        proxy, headers = get_proxy_and_headers(proxies, user_agent)
+        search_url = f"https://www.walmart.com/search/?query={sku}&page={page}"
 
-        while True:
-            search_url = f"https://www.walmart.com/search/?query={sku}&page={page}"
-            try:
-                response = requests.get(search_url, headers=headers, proxies=proxy, timeout=timeout)
-                if response.status_code == 200:
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    product_links = soup.select(
-                        'a[class*="product-title-link"], '
-                        'a[class*="search-result-product-title"], '
-                        'a[data-automation-id*="product-title"], '
-                        'a[href*="ip/"]'
-                    )
-
-                    for link in product_links:
-                        product_url = "https://www.walmart.com" + link['href']
-                        if sku in product_url or sku in soup.get_text():
-                            print(f"[SUCCESS] Walmart Product found for SKU: {sku}")
-                            return product_url
-
-                    if soup.select_one('button[data-automation-id="pagination-next"]'):
-                        page += 1
-                    else:
-                        print(f"[INFO] No more pages. SKU {sku} not located.")
-                        return "Not Found"
+        try:
+            response = requests.get(search_url, headers=headers, proxies=proxy, timeout=timeout)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                product_links = soup.select(
+                    'a[class*="product-title-link"], '
+                    'a[class*="search-result-product-title"], '
+                    'a[data-automation-id*="product-title"], '
+                    'a[href*="ip/"]'
+                )
+                for link in product_links:
+                    product_url = "https://www.walmart.com" + link['href']
+                    if sku in product_url or sku in soup.get_text():
+                        # print(f"[SUCCESS] Walmart Product found for SKU: {sku}")
+                        return product_url
+                if soup.select_one('button[data-automation-id="pagination-next"]'):
+                    page += 1
                 else:
-                    retries += 1
-                    break
-
-            except requests.RequestException as e:
-                print(f"[ERROR] Exception for SKU {sku} on page {page}: {e}")
+                    return "Not Found"
+            else:
                 retries += 1
-                break
-
-            time.sleep(random.uniform(2, 4))
-
-    print(f"[ERROR] Walmart search failed for SKU: {sku} after {MAX_RETRIES} attempts")
+        except requests.RequestException as e:
+            retries += 1
     return "Not Found"
-
-def search_skus_on_walmart_concurrently(skus, proxies_file, max_workers=5):
-    proxies = load_proxies(proxies_file)
-    user_agent = UserAgent()
-    results = []
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_sku = {executor.submit(search_walmart_by_sku, sku, proxies, user_agent): sku for sku in skus}
-        
-        for future in as_completed(future_to_sku):
-            sku = future_to_sku[future]
-            try:
-                walmart_link = future.result()
-                results.append({'SKU': sku, 'Walmart Link': walmart_link})
-                print(f"[INFO] Search result for SKU {sku}: {walmart_link}")
-            except Exception as e:
-                results.append({'SKU': sku, 'Walmart Link': f"Error: {e}"})
-                print(f"[ERROR] Failed search for SKU {sku} - Error: {e}")
-
-    if state_manager.is_running:
-        save_search_results(results, filename_base='search_results')
-    
-    state_manager.is_running = False
-    print("[INFO] Walmart search completed.")
 
 def search_skus_on_walmart(skus, proxies_file):
     proxies = load_proxies(proxies_file)
@@ -127,14 +100,9 @@ def search_amazon_by_sku(sku, proxies, user_agent):
         if not state_manager.is_running:
             return "Process Stopped"
 
-        proxy = random.choice(proxies)
-        headers = {
-            "User-Agent": user_agent.random,
-            "Accept-Language": "en-US,en;q=0.9",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Connection": "keep-alive"
-        }
+        proxy, headers = get_proxy_and_headers(proxies, user_agent)
         search_url = f"https://www.amazon.com/s?k={sku}"
+
         try:
             response = requests.get(search_url, headers=headers, proxies=proxy, timeout=10)
             if response.status_code == 200:
@@ -142,32 +110,17 @@ def search_amazon_by_sku(sku, proxies, user_agent):
                 product_link = soup.select_one('a.a-link-normal.a-text-normal, a.a-link-normal.s-no-outline')
                 if product_link and is_valid_amazon_link("https://www.amazon.com" + product_link['href']):
                     return "https://www.amazon.com" + product_link['href']
-            retries += 1
+            else:
+                retries += 1
         except requests.RequestException:
             retries += 1
-
     return "Not Found"
 
-def search_skus_concurrently(skus, proxies_file, max_workers=10):
-    proxies = load_proxies(proxies_file)
-    user_agent = UserAgent()
-    results = []
+def walmart_search_concurrently(skus, proxies_file, max_workers=5):
+    return concurrent_sku_search(skus, proxies_file, search_walmart_by_sku, link_key='Walmart Link', max_workers=max_workers)
 
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_sku = {executor.submit(search_amazon_by_sku, sku, proxies, user_agent): sku for sku in skus}
-        for future in as_completed(future_to_sku):
-            sku = future_to_sku[future]
-            if not state_manager.is_running:
-                break
-            try:
-                amazon_link = future.result()
-                results.append({'SKU': sku, 'Amazon Link': amazon_link})
-                print(f"[INFO] {'SUCCESS' if 'Not Found' not in amazon_link else 'ERROR'} for SKU: {sku}")
-            except Exception as e:
-                results.append({'SKU': sku, 'Amazon Link': f"Error: {e}"})
-                print(f"[ERROR] Failed search for SKU: {sku} - Error: {e}")
-
-    return results
+def amazon_search_concurrently(skus, proxies_file, max_workers=5):
+    return concurrent_sku_search(skus, proxies_file, search_amazon_by_sku, link_key='Amazon Link', max_workers=max_workers)
 
 def save_search_results(results, filename_base='search_results'):
     search_type = "Amazon" if "Amazon Link" in results[0] else "Walmart"
@@ -178,20 +131,22 @@ def save_search_results(results, filename_base='search_results'):
         writer.writeheader()
         writer.writerows(results)
     
-    print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} Results saved to {filename}")
+    print(f"{Fore.GREEN}[INFO]{Style.RESET_ALL} Results saved to {filename}")
     move_and_rename_files(OLD_SKUS_DIR, filename)
 
-def search_skus_from_list(skus, proxies_file):
-    results = search_skus_concurrently(skus, proxies_file)
-    if state_manager.is_running:
-        save_search_results(results)
+def search_skus_on_amazon(skus=None, file_path=None, proxies_file="proxies.txt"):
+    if skus is None and file_path is not None:
+        with open(file_path, 'r') as file:
+            skus = [line.strip() for line in file.readlines()]
 
-def search_skus_from_file(file_path, proxies_file):
-    with open(file_path, 'r') as file:
-        skus = [line.strip() for line in file.readlines()]
-    results = search_skus_concurrently(skus, proxies_file)
+    if skus is None:
+        print("[ERROR] No SKUs provided for Amazon search.")
+        return
+
+    results = concurrent_sku_search(skus, proxies_file, search_amazon_by_sku, link_key='Amazon Link', max_workers=10)
     if state_manager.is_running:
-        save_search_results(results)
+        save_search_results(results, filename_base='search_results')
+    print("[INFO] Amazon search completed.")
 
 def get_search_results():
     try:
