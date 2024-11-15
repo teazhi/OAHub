@@ -14,6 +14,8 @@ from tksheet import Sheet
 import fitz
 import state_manager
 
+ctk.set_appearance_mode("dark")
+
 class DualOutput:
     ansi_escape = re.compile(r'\x1B[@-_][0-?]*[ -/]*[@-~]')
 
@@ -55,29 +57,40 @@ class OAHubApp:
     def __init__(self, root):
         self.root = root
         self.token = None
-        self.extracted_skus = []
-        self.setup_gui()
-
-    def setup_gui(self):
+        self.sheet = None
         self.root.title("OAHub")
         self.root.geometry("1000x700")
-        ctk.CTkLabel(self.root, text="OAHub", font=("Roboto", 45, "bold")).pack(pady=15)
+        self.show_login_screen()
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
 
-        self.request_token()
+    def on_closing(self):
+        self.root.destroy()
+        sys.exit()
 
-    def request_token(self):
-        self.token = simpledialog.askstring("Token Login", "Enter your access token:")
+    def show_login_screen(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
 
+        login_frame = ctk.CTkFrame(self.root, width=400, height=300, corner_radius=10)
+        login_frame.pack(expand=True)
+
+        ctk.CTkLabel(login_frame, text="Login", font=("Roboto", 24, "bold")).pack(pady=20)
+
+        self.token_var = ctk.StringVar()
+        ctk.CTkEntry(login_frame, textvariable=self.token_var, placeholder_text="Enter your access token", width=250).pack(pady=10)
+
+        ctk.CTkButton(login_frame, text="Login", command=self.handle_login).pack(pady=10)
+
+    def handle_login(self):
+        self.token = self.token_var.get().strip()
         if self.token:
             if self.verify_token():
                 messagebox.showinfo("Login Successful", "You have successfully logged in.")
                 self.show_main_interface()
             else:
                 messagebox.showerror("Login Failed", "Invalid token. Please try again.")
-                self.request_token()
         else:
-            messagebox.showwarning("No Token", "Token is required to access the application.")
-            self.root.quit()
+            messagebox.showwarning("No Token", "Please enter a token to continue.")
 
     def verify_token(self):
         try:
@@ -87,8 +100,12 @@ class OAHubApp:
             messagebox.showerror("Error", f"Failed to verify token: {e}")
             return False
 
-
     def show_main_interface(self):
+        for widget in self.root.winfo_children():
+            widget.destroy()
+
+        ctk.CTkLabel(self.root, text="OAHub", font=("Roboto", 45, "bold")).pack(pady=15)
+
         tab_view = ctk.CTkTabview(self.root, width=900, height=580)
         tab_view.pack(pady=(0, 20))
 
@@ -147,7 +164,7 @@ class OAHubApp:
         return read_json(json_path)
 
     def create_wholesale_tab(self, tab):
-        wholesale_left_frame = ctk.CTkFrame(tab, width=850, height=500)
+        wholesale_left_frame = ctk.CTkFrame(tab, width=425, height=500)
         wholesale_left_frame.grid(row=0, column=0, padx=(20, 10), pady=20, sticky="nsew")
 
         output_textbox = ctk.CTkTextbox(wholesale_left_frame, width=400, height=300, font=("Roboto", 12))
@@ -156,25 +173,74 @@ class OAHubApp:
 
         selected_file_var = ctk.StringVar()
 
-        select_file_button = ctk.CTkButton(wholesale_left_frame, text="Select SKU File", anchor="center", width=180, height=40,
-                                        command=lambda: self.select_skus_file(output_textbox, selected_file_var))
-        select_file_button.grid(row=1, column=0, padx=(10, 5), pady=5, sticky="ew")
+        ctk.CTkButton(wholesale_left_frame, text="Select SKU File", anchor="center", width=180, height=40,
+                      command=lambda: self.select_skus_file(output_textbox, selected_file_var)).grid(row=1, column=0, padx=(10, 5), pady=5, sticky="ew")
+        ctk.CTkButton(wholesale_left_frame, text="Select PDF File", anchor="center", width=180, height=40,
+                      command=lambda: self.select_pdf_file(output_textbox, selected_file_var)).grid(row=1, column=1, padx=(5, 10), pady=5, sticky="ew")
+        ctk.CTkButton(wholesale_left_frame, text="Download Latest Search", anchor="center", width=180, height=40,
+                      command=lambda: self.download_amazon_links_file(output_textbox)).grid(row=3, column=0, padx=(10, 5), pady=5, sticky="ew")
 
-        download_button = ctk.CTkButton(wholesale_left_frame, text="Download Latest Search", anchor="center", width=180, height=40,
-                                        command=lambda: self.download_amazon_links_file(output_textbox))
-        download_button.grid(row=1, column=1, padx=(5, 10), pady=5, sticky="ew")
+        ctk.CTkButton(wholesale_left_frame, text="Start Amazon", anchor="center", width=180, height=40, fg_color="#228B22",
+                      command=lambda: self.start_amazon_search(output_textbox, selected_file_var, wholesale_button=None)).grid(row=2, column=1, padx=(5, 10), pady=5, sticky="ew")
+        ctk.CTkButton(wholesale_left_frame, text="Start Walmart", anchor="center", width=180, height=40, fg_color="#228B22",
+                      command=lambda: self.start_walmart_search(output_textbox, selected_file_var, wholesale_button=None)).grid(row=2, column=0, padx=(10, 5), pady=5, sticky="ew")
 
-        select_pdf_button = ctk.CTkButton(wholesale_left_frame, text="Select PDF File", anchor="center", width=180, height=40,
-                                        command=lambda: self.select_pdf_file(output_textbox, selected_file_var))
-        select_pdf_button.grid(row=2, column=0, columnspan=2, padx=10, pady=5, sticky="ew")
+        wholesale_right_frame = ctk.CTkFrame(tab, width=425, height=500)
+        wholesale_right_frame.grid(row=0, column=1, padx=(10, 20), pady=20, sticky="nsew")
 
-        wholesale_amazon_button = ctk.CTkButton(wholesale_left_frame, text="Start Amazon", anchor="center", width=180, height=40, fg_color="#228B22",
-                                                command=lambda: self.start_amazon_search(output_textbox, selected_file_var, wholesale_amazon_button))
-        wholesale_amazon_button.grid(row=3, column=0, padx=(10, 5), pady=5, sticky="ew")
+        self.sheet = Sheet(wholesale_right_frame, width=400, height=400)
+        self.sheet.pack(fill="both", expand=True)
+        self.sheet.headers(["SKU", "Details"])
+        self.sheet.set_sheet_data([])
 
-        wholesale_walmart_button = ctk.CTkButton(wholesale_left_frame, text="Start Walmart", anchor="center", width=180, height=40, fg_color="#228B22",
-                                                command=lambda: self.start_walmart_search(output_textbox, selected_file_var, wholesale_walmart_button))
-        wholesale_walmart_button.grid(row=3, column=1, padx=(5, 10), pady=5, sticky="ew")
+        ctk.CTkButton(wholesale_left_frame, text="Show Results", anchor="center", width=180, height=40,
+                      command=lambda: self.show_results(output_textbox)).grid(row=3, column=1, padx=(5, 10), pady=10, sticky="ew")
+
+    def select_pdf_file(self, output_textbox, selected_file_var):
+        file_path = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
+        if file_path:
+            self.extracted_skus = self.extract_skus_from_pdf(file_path)
+            output_textbox.configure(state="normal")
+            output_textbox.insert(ctk.END, f"Extracted {len(self.extracted_skus)} SKUs from PDF.\n")
+            output_textbox.configure(state="disabled")
+        else:
+            output_textbox.configure(state="normal")
+            output_textbox.insert(ctk.END, "No file selected.\n")
+            output_textbox.configure(state="disabled")
+
+    def extract_skus_from_pdf(self, file_path):
+        skus = []
+        with fitz.open(file_path) as doc:
+            for page_num in range(doc.page_count):
+                text = doc.load_page(page_num).get_text("text")
+                skus.extend(re.findall(r'\b\d{7,14}\b', text))
+        return skus
+
+    def show_results(self, output_textbox):
+        try:
+            output_textbox.configure(state="normal")
+            output_textbox.delete("1.0", ctk.END)
+            output_textbox.configure(state="disabled")
+
+            if not isinstance(sys.stdout, DualOutput):
+                sys.stdout = DualOutput(output_textbox)
+
+            results = get_search_results()
+            if not results:
+                messagebox.showinfo("No Results", "No results found.")
+                return
+
+            data = [[result['SKU'], result.get('Details', 'N/A')] for result in results]
+            self.sheet.set_sheet_data(data)
+
+            output_textbox.configure(state="normal")
+            output_textbox.insert(ctk.END, "Results successfully loaded into the table.\n")
+            output_textbox.configure(state="disabled")
+        except Exception as e:
+            output_textbox.configure(state="normal")
+            output_textbox.insert(ctk.END, f"Error: {e}\n")
+            output_textbox.configure(state="disabled")
+            messagebox.showerror("Error", f"Failed to fetch results: {e}")
 
     def select_skus_file(self, output_textbox, selected_file_var):
         file_path = filedialog.askopenfilename(filetypes=[("Text files", "*.txt")])
