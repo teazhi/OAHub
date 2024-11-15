@@ -73,6 +73,7 @@ def search_walmart_by_sku(sku, proxies, user_agent):
             else:
                 retries += 1
         except requests.RequestException as e:
+            print(f"[ERROR] {e}")
             retries += 1
     return "Not Found"
 
@@ -112,7 +113,8 @@ def search_amazon_by_sku(sku, proxies, user_agent):
                     return "https://www.amazon.com" + product_link['href']
             else:
                 retries += 1
-        except requests.RequestException:
+        except requests.RequestException as e:
+            print(f"[ERROR] {e}")
             retries += 1
     return "Not Found"
 

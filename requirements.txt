@@ -10,3 +10,4 @@ customtkinter
 tksheet
 pymupdf
 retrying
+Flask==2.0.2
