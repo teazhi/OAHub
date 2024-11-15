@@ -3,6 +3,9 @@ from PIL import Image, ImageTk, ImageDraw
 import customtkinter as ctk
 import os
 import shutil
+import asyncio
+from playwright.async_api import async_playwright
+import threading
 
 def create_obrowser_tab(tab_view):
     # Create O-Browser tab
@@ -119,6 +122,36 @@ def load_profiles(obrowser_tab):
         if os.path.isdir(profile_path):
             add_profile_to_display(obrowser_tab, profile_name, popup=None)
 
+async def open_browser_with_session(folder_name):
+    profile_dir = os.path.join(os.getcwd(), f"o_browser_profiles/{folder_name}")
+
+    if not os.path.exists(profile_dir):
+        os.makedirs(profile_dir)
+
+    async with async_playwright() as p:
+        browser_type = p.chromium
+        context = await browser_type.launch_persistent_context(
+            user_data_dir=profile_dir,
+            headless=False
+        )
+
+        if not context.pages:
+            page = await context.new_page()
+        else:
+            page = context.pages[0]
+
+        await page.goto("https://www.google.com")
+
+        try:
+            while len(context.pages) > 0:
+                await asyncio.sleep(1)
+        except Exception as e:
+            print(f"Error during browser check: {e}")
+
+
+def run_browser_in_thread(profile_name):
+    asyncio.run(open_browser_with_session(profile_name))
+
 def add_profile_to_display(obrowser_tab, profile_name, popup=None):
     if popup:
         popup.destroy()
@@ -139,8 +172,13 @@ def add_profile_to_display(obrowser_tab, profile_name, popup=None):
     profile_label = ctk.CTkLabel(profile_frame, text=profile_name, font=("Roboto", 12))
     profile_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
 
-    # Run button
-    run_button = ctk.CTkButton(profile_frame, text="Run", width=50)
+    # Run button with threading
+    run_button = ctk.CTkButton(
+        profile_frame, 
+        text="Run", 
+        width=50, 
+        command=lambda: threading.Thread(target=run_browser_in_thread, args=(profile_name,)).start()
+    )
     run_button.grid(row=0, column=1, padx=(10, 0), pady=5, sticky="e")
 
     # Ready status
