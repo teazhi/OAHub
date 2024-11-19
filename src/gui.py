@@ -13,6 +13,7 @@ from backend.automation_main import start_automation
 from tksheet import Sheet
 import fitz
 import state_manager
+from auth import SUPABASE_URL, SUPABASE_KEY, supabase
 
 ctk.set_appearance_mode("dark")
 
@@ -93,12 +94,8 @@ class OAHubApp:
             messagebox.showwarning("No Token", "Please enter a token to continue.")
 
     def verify_token(self):
-        try:
-            response = requests.post("http://127.0.0.1:5000/login", headers={"Authorization": self.token})
-            return response.status_code == 200
-        except requests.RequestException as e:
-            messagebox.showerror("Error", f"Failed to verify token: {e}")
-            return False
+        response = requests.post(f"{SUPABASE_URL}/login", headers={"Authorization": self.token})
+        return response.status_code == 200
 
     def show_main_interface(self):
         for widget in self.root.winfo_children():

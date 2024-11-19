@@ -1,34 +1,28 @@
-import secrets
-import json
+from flask import Flask, request, jsonify
+from supabase import create_client
+from dotenv import load_dotenv
 import os
-from flask import request, jsonify
 
-TOKEN_FILE = os.path.join(os.path.dirname(__file__), "..", "config", "tokens.json")
-valid_tokens = []
+load_dotenv()
 
-def load_tokens():
-    global valid_tokens
-    try:
-        with open(TOKEN_FILE, "r") as file:
-            valid_tokens = json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        valid_tokens = []
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-def save_tokens():
-    with open(TOKEN_FILE, "w") as file:
-        json.dump(valid_tokens, file)
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-load_tokens()
+app = Flask(__name__)
 
+@app.route("/login", methods=["POST"])
 def login():
-    load_tokens()
     token = request.headers.get("Authorization")
-    if token in valid_tokens:
+    if not token:
+        return jsonify({"message": "Unauthorized"}), 401
+
+    # Check token in Supabase
+    response = supabase.table("tokens").select("token").eq("token", token).execute()
+    if response.data:
         return jsonify({"message": "Access granted"}), 200
     return jsonify({"message": "Unauthorized"}), 403
 
-def generate_token():
-    token = secrets.token_hex(16)
-    valid_tokens.append(token)
-    save_tokens()
-    return token
+if __name__ == "__main__":
+    app.run(debug=True)

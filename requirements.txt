@@ -11,3 +11,5 @@ tksheet
 pymupdf
 retrying
 Flask==2.0.2
+supabase
+python-dotenv

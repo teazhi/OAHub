@@ -5,6 +5,7 @@ import csv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from fake_useragent import UserAgent
 from colorama import Fore, Style, init
+import supabase
 
 import state_manager
 from backend.utils import load_proxies, is_valid_amazon_link, move_and_rename_files, get_proxy_and_headers
@@ -124,31 +125,14 @@ def walmart_search_concurrently(skus, proxies_file, max_workers=5):
 def amazon_search_concurrently(skus, proxies_file, max_workers=5):
     return concurrent_sku_search(skus, proxies_file, search_amazon_by_sku, link_key='Amazon Link', max_workers=max_workers)
 
-def save_search_results(results, filename_base='search_results'):
-    search_type = "Amazon" if "Amazon Link" in results[0] else "Walmart"
-    filename = f'{filename_base}_{search_type.lower()}.csv'
+def save_search_results(results, table_name="skus"):
+    for result in results:
+        supabase.table(table_name).insert(result).execute()
 
-    with open(filename, mode='w', newline='') as file:
-        writer = csv.DictWriter(file, fieldnames=['SKU', f'{search_type} Link'])
-        writer.writeheader()
-        writer.writerows(results)
-    
-    print(f"{Fore.GREEN}[INFO]{Style.RESET_ALL} Results saved to {filename}")
-    move_and_rename_files(OLD_SKUS_DIR, filename)
-
+# Update search functions
 def search_skus_on_amazon(skus=None, file_path=None, proxies_file="proxies.txt"):
-    if skus is None and file_path is not None:
-        with open(file_path, 'r') as file:
-            skus = [line.strip() for line in file.readlines()]
-
-    if skus is None:
-        print("[ERROR] No SKUs provided for Amazon search.")
-        return
-
-    results = concurrent_sku_search(skus, proxies_file, search_amazon_by_sku, link_key='Amazon Link', max_workers=10)
-    if state_manager.is_running:
-        save_search_results(results, filename_base='search_results')
-    print("[INFO] Amazon search completed.")
+    results = concurrent_sku_search(skus, proxies_file, search_amazon_by_sku, link_key="Amazon Link")
+    save_search_results(results)
 
 def get_search_results():
     try:
