@@ -75,15 +75,18 @@ def validate_and_create_profile(obrowser_tab, profile_name, popup, error_label):
 
     add_profile_to_display(obrowser_tab, profile_name, popup)
 
-def show_settings_popup(event, profile_frame):
-    if hasattr(profile_frame, "settings_menu") and profile_frame.settings_menu.winfo_exists():
-        profile_frame.settings_menu.destroy()
-    
-    settings_menu = ctk.CTkToplevel()
-    settings_menu.title("")  
-    settings_menu.overrideredirect(True)  
-    settings_menu.geometry("60x30")
-    profile_frame.settings_menu = settings_menu
+def show_settings_popup(profile_frame):
+    popup = ctk.CTkToplevel()
+    popup.title("Settings")
+    popup.geometry("200x150")
+    popup.resizable(False, False)
+
+    main_window = profile_frame.winfo_toplevel()
+    main_window_x = main_window.winfo_x()
+    main_window_y = main_window.winfo_y()
+    main_window_width = main_window.winfo_width()
+    main_window_height = main_window.winfo_height()
+    popup.geometry(f"+{main_window_x + (main_window_width // 2) - 100}+{main_window_y + (main_window_height // 2) - 75}")
 
     popup.configure(bg="#333333")
 
@@ -238,23 +241,23 @@ def add_profile_to_display(obrowser_tab, profile_name, popup=None):
     profile_label = ctk.CTkLabel(profile_frame, text=profile_name, font=("Roboto", 12))
     profile_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
 
-    # Run button with threading
+    # Status label
+    status_label = ctk.CTkLabel(profile_frame, text="Ready", font=("Roboto", 10))
+    status_label.grid(row=0, column=2, padx=10, pady=5, sticky="e")
+
     run_button = ctk.CTkButton(
-        profile_frame, 
-        text="Run", 
-        width=50, 
-        command=lambda: threading.Thread(target=run_browser_in_thread, args=(profile_name,)).start()
+        profile_frame,
+        text="Run",
+        width=50,
+        command=lambda: run_browser_in_thread(profile_name, status_label, run_button)
     )
     run_button.grid(row=0, column=1, padx=(10, 0), pady=5, sticky="e")
-
-    # Ready status
-    status_label = ctk.CTkLabel(profile_frame, text="ready", font=("Roboto", 10))
-    status_label.grid(row=0, column=2, padx=10, pady=5, sticky="e")
 
     # Triple dot settings button
     settings_button = ctk.CTkLabel(profile_frame, text="⋮", font=("Roboto", 14), cursor="hand2")
     settings_button.grid(row=0, column=3, padx=10, pady=5, sticky="e")
-    settings_button.bind("<Button-1>", lambda event, pf=profile_frame: show_settings_popup(event, pf))
+    settings_button.bind("<Button-1>", lambda event: show_settings_popup(profile_frame))
+
 
     profile_frame.pack(fill="x", expand=True, pady=5)
 
