@@ -85,22 +85,59 @@ def show_settings_popup(event, profile_frame):
     settings_menu.geometry("60x30")
     profile_frame.settings_menu = settings_menu
 
-    button_x = event.widget.winfo_rootx()
-    button_y = event.widget.winfo_rooty()
-    settings_menu.geometry(f"+{button_x + event.widget.winfo_width() + 5}+{button_y}")
+    popup.configure(bg="#333333")
 
+    # Delete Profile button
     delete_button = ctk.CTkButton(
-        settings_menu, 
-        text="Delete", 
-        width=40,
-        height=20, 
-        font=("Roboto", 10), 
-        command=lambda: delete_profile(profile_frame, settings_menu)
+        popup,
+        text="Delete Profile",
+        command=lambda: delete_profile(profile_frame, popup)
+    )
+    delete_button.pack(pady=(20, 10))  # Add spacing
+
+    # Rename Profile button
+    rename_button = ctk.CTkButton(
+        popup,
+        text="Rename Profile",
+        command=lambda: show_rename_popup(profile_frame, popup)
+    )
+    rename_button.pack(pady=(10, 20))
+
+    popup.attributes("-topmost", True)
+
+def show_rename_popup(profile_frame, settings_menu):
+    settings_menu.destroy()
+
+    rename_popup = ctk.CTkToplevel()
+    rename_popup.title("Rename Profile")
+    rename_popup.geometry("300x150")
+    rename_popup.resizable(False, False)
+
+    main_window = profile_frame.winfo_toplevel()
+    main_window_x = main_window.winfo_x()
+    main_window_y = main_window.winfo_y()
+    main_window_width = main_window.winfo_width()
+    main_window_height = main_window.winfo_height()
+    rename_popup.geometry(f"+{main_window_x + (main_window_width // 2) - 150}+{main_window_y + (main_window_height // 2) - 75}")
+
+    rename_popup.configure(bg="#333333")
+
+    # new profile name
+    new_name_entry = ctk.CTkEntry(rename_popup, width=250, placeholder_text="Enter new profile name...")
+    new_name_entry.pack(pady=(20, 10))
+    new_name_entry.focus_set()
+
+    error_label = ctk.CTkLabel(rename_popup, text="", font=("Roboto", 10), text_color="red")
+    error_label.pack(pady=(5, 5))
+
+    # Rename button
+    rename_button = ctk.CTkButton(
+        rename_popup,
+        text="Rename",
+        command=lambda: rename_profile(profile_frame, new_name_entry.get(), error_label, rename_popup)
     )
     delete_button.pack(fill="both", expand=True, padx=2, pady=2)
 
-    settings_menu.bind("<FocusOut>", lambda event: settings_menu.destroy())
-    settings_menu.focus_set()
 
 def delete_profile(profile_frame, settings_menu):
     folder_path = profile_frame.folder_path
@@ -122,11 +159,15 @@ def load_profiles(obrowser_tab):
         if os.path.isdir(profile_path):
             add_profile_to_display(obrowser_tab, profile_name, popup=None)
 
-async def open_browser_with_session(folder_name):
-    profile_dir = os.path.join(os.getcwd(), f"o_browser_profiles/{folder_name}")
+
+async def open_browser(profile_name, status_label, run_button):
+    profile_dir = os.path.join(os.getcwd(), f"o_browser_profiles/{profile_name}")
 
     if not os.path.exists(profile_dir):
         os.makedirs(profile_dir)
+
+    status_label.configure(text="Running")
+    run_button.configure(state=tk.DISABLED)
 
     async with async_playwright() as p:
         browser_type = p.chromium
@@ -148,9 +189,14 @@ async def open_browser_with_session(folder_name):
         except Exception as e:
             print(f"Error during browser check: {e}")
 
+    status_label.configure(text="Ready")
+    run_button.configure(state=tk.NORMAL) 
 
-def run_browser_in_thread(profile_name):
-    asyncio.run(open_browser_with_session(profile_name))
+def run_browser_in_thread(profile_name, status_label, run_button):
+    def browser_task():
+        asyncio.run(open_browser(profile_name, status_label, run_button))
+    
+    threading.Thread(target=browser_task, daemon=True).start()
 
 def add_profile_to_display(obrowser_tab, profile_name, popup=None):
     if popup:
@@ -161,7 +207,6 @@ def add_profile_to_display(obrowser_tab, profile_name, popup=None):
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    # Create the profile frame for display
     profile_frame = ctk.CTkFrame(obrowser_tab.profile_display_frame)
     profile_frame.grid_columnconfigure(0, weight=1)
     profile_frame.grid_columnconfigure(1, weight=0)
