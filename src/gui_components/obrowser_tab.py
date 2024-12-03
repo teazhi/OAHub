@@ -136,7 +136,28 @@ def show_rename_popup(profile_frame, settings_menu):
         text="Rename",
         command=lambda: rename_profile(profile_frame, new_name_entry.get(), error_label, rename_popup)
     )
-    delete_button.pack(fill="both", expand=True, padx=2, pady=2)
+    rename_button.pack(pady=(10, 20))
+
+def rename_profile(profile_frame, new_name, error_label, rename_popup):
+    if not new_name.strip():
+        error_label.configure(text="Error: Profile name cannot be empty.")
+        return
+
+    old_folder_path = profile_frame.folder_path
+    new_folder_path = os.path.join("o_browser_profiles", new_name)
+
+    if os.path.exists(new_folder_path):
+        error_label.configure(text="Error: Profile name already exists.")
+        return
+
+    try:
+        os.rename(old_folder_path, new_folder_path)
+        profile_frame.folder_path = new_folder_path
+        profile_label = profile_frame.grid_slaves(row=0, column=0)[0]
+        profile_label.configure(text=new_name)
+        rename_popup.destroy() 
+    except Exception as e:
+        error_label.configure(text=f"Error: {str(e)}")
 
 
 def delete_profile(profile_frame, settings_menu):
@@ -237,5 +258,4 @@ def add_profile_to_display(obrowser_tab, profile_name, popup=None):
 
     profile_frame.pack(fill="x", expand=True, pady=5)
 
-    # Store folder path in profile frame for later deletion
     profile_frame.folder_path = folder_path
