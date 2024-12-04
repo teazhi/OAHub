@@ -30,38 +30,6 @@ def create_obrowser_tab(tab_view):
 
     return obrowser_tab  
 
-def create_profile_popup(obrowser_tab):
-    popup = ctk.CTkToplevel()
-    popup.title("Create Profile")
-    popup.geometry("280x160") 
-    popup.resizable(False, False)
-
-    main_window = obrowser_tab.winfo_toplevel() 
-    main_window_x = main_window.winfo_x()
-    main_window_y = main_window.winfo_y()
-    main_window_width = main_window.winfo_width()
-    main_window_height = main_window.winfo_height()
-    x_cordinate = main_window_x + (main_window_width // 2) - (popup.winfo_reqwidth() // 2)
-    y_cordinate = main_window_y + (main_window_height // 2) - (popup.winfo_reqheight() // 2)
-    popup.geometry(f"+{x_cordinate}+{y_cordinate}")
-
-    popup.attributes("-topmost", True)  
-    popup.configure(bg="#333333") 
-
-    search_entry = ctk.CTkEntry(popup, width=220, placeholder_text="Enter profile name...", font=("Roboto", 12))
-    search_entry.pack(pady=(20, 5))
-    search_entry.focus_set()
-
-    error_label = ctk.CTkLabel(popup, text="", font=("Roboto", 10), text_color="red")
-    error_label.pack(pady=(5, 5))
-
-    search_button = ctk.CTkButton(
-        popup, 
-        text="Create", 
-        width=80, 
-        command=lambda: validate_and_create_profile(obrowser_tab, search_entry.get(), popup, error_label)
-    )
-    search_button.pack(pady=(0, 10))
 
 def validate_and_create_profile(obrowser_tab, profile_name, popup, error_label):
     if not profile_name.strip():
@@ -231,34 +199,99 @@ def add_profile_to_display(obrowser_tab, profile_name, popup=None):
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 
-    profile_frame = ctk.CTkFrame(obrowser_tab.profile_display_frame)
+    profile_frame = ctk.CTkFrame(
+        obrowser_tab.profile_display_frame, 
+        corner_radius=10, 
+        fg_color="#444444", 
+        height=60
+    )
     profile_frame.grid_columnconfigure(0, weight=1)
     profile_frame.grid_columnconfigure(1, weight=0)
     profile_frame.grid_columnconfigure(2, weight=0)
     profile_frame.grid_columnconfigure(3, weight=0)
 
-    # Profile label
-    profile_label = ctk.CTkLabel(profile_frame, text=profile_name, font=("Roboto", 12))
-    profile_label.grid(row=0, column=0, padx=10, pady=5, sticky="w")
+    profile_label = ctk.CTkLabel(
+        profile_frame, 
+        text=profile_name, 
+        font=("Roboto", 14, "bold"), 
+        text_color="#ffffff"
+    )
+    profile_label.grid(row=0, column=0, padx=20, pady=5, sticky="w")
 
-    # Status label
-    status_label = ctk.CTkLabel(profile_frame, text="Ready", font=("Roboto", 10))
-    status_label.grid(row=0, column=2, padx=10, pady=5, sticky="e")
+    status_label = ctk.CTkLabel(
+        profile_frame, 
+        text="Ready", 
+        font=("Roboto", 12), 
+        text_color="#00ff00" 
+    )
+    status_label.grid(row=0, column=2, padx=20, pady=5, sticky="e")
 
     run_button = ctk.CTkButton(
         profile_frame,
         text="Run",
-        width=50,
+        width=80,
+        hover_color="#00aa00",
         command=lambda: run_browser_in_thread(profile_name, status_label, run_button)
     )
-    run_button.grid(row=0, column=1, padx=(10, 0), pady=5, sticky="e")
+    run_button.grid(row=0, column=1, padx=(20, 0), pady=5, sticky="e")
 
-    # Triple dot settings button
-    settings_button = ctk.CTkLabel(profile_frame, text="⋮", font=("Roboto", 14), cursor="hand2")
-    settings_button.grid(row=0, column=3, padx=10, pady=5, sticky="e")
+    settings_button = ctk.CTkLabel(
+        profile_frame, 
+        text="⚙",
+        font=("Roboto", 16, "bold"), 
+        cursor="hand2",
+        text_color="#cccccc"
+    )
+    settings_button.grid(row=0, column=3, padx=20, pady=5, sticky="e")
     settings_button.bind("<Button-1>", lambda event: show_settings_popup(profile_frame))
 
-
-    profile_frame.pack(fill="x", expand=True, pady=5)
+    profile_frame.pack(fill="x", expand=True, pady=10)
 
     profile_frame.folder_path = folder_path
+
+
+def create_profile_popup(obrowser_tab):
+    popup = ctk.CTkToplevel()
+    popup.title("Create Profile")
+    popup.geometry("300x200") 
+    popup.resizable(False, False)
+
+    main_window = obrowser_tab.winfo_toplevel()
+    main_window_x = main_window.winfo_x()
+    main_window_y = main_window.winfo_y()
+    main_window_width = main_window.winfo_width()
+    main_window_height = main_window.winfo_height()
+    x_cordinate = main_window_x + (main_window_width // 2) - 150
+    y_cordinate = main_window_y + (main_window_height // 2) - 100
+    popup.geometry(f"+{x_cordinate}+{y_cordinate}")
+
+    popup.attributes("-topmost", True)
+    popup.configure(bg="#333333")
+
+    search_entry = ctk.CTkEntry(
+        popup, 
+        width=240, 
+        placeholder_text="Enter profile name...", 
+        font=("Roboto", 12),
+        border_width=2,
+        corner_radius=8
+    )
+    search_entry.pack(pady=(30, 10))
+    search_entry.focus_set()
+
+    error_label = ctk.CTkLabel(
+        popup, 
+        text="", 
+        font=("Roboto", 10), 
+        text_color="red"
+    )
+    error_label.pack(pady=(5, 10))
+
+    create_button = ctk.CTkButton(
+        popup, 
+        text="Create Profile", 
+        width=120, 
+        hover_color="#555555",
+        command=lambda: validate_and_create_profile(obrowser_tab, search_entry.get(), popup, error_label)
+    )
+    create_button.pack(pady=(10, 20))
