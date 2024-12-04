@@ -46,7 +46,7 @@ def validate_and_create_profile(obrowser_tab, profile_name, popup, error_label):
 def show_settings_popup(profile_frame):
     popup = ctk.CTkToplevel()
     popup.title("Settings")
-    popup.geometry("200x150")
+    popup.geometry("200x200")
     popup.resizable(False, False)
 
     main_window = profile_frame.winfo_toplevel()
@@ -54,7 +54,7 @@ def show_settings_popup(profile_frame):
     main_window_y = main_window.winfo_y()
     main_window_width = main_window.winfo_width()
     main_window_height = main_window.winfo_height()
-    popup.geometry(f"+{main_window_x + (main_window_width // 2) - 100}+{main_window_y + (main_window_height // 2) - 75}")
+    popup.geometry(f"+{main_window_x + (main_window_width // 2) - 100}+{main_window_y + (main_window_height // 2) - 100}")
 
     popup.configure(bg="#333333")
 
@@ -64,7 +64,7 @@ def show_settings_popup(profile_frame):
         text="Delete Profile",
         command=lambda: delete_profile(profile_frame, popup)
     )
-    delete_button.pack(pady=(20, 10))  # Add spacing
+    delete_button.pack(pady=(10, 5))  # Add spacing
 
     # Rename Profile button
     rename_button = ctk.CTkButton(
@@ -72,10 +72,33 @@ def show_settings_popup(profile_frame):
         text="Rename Profile",
         command=lambda: show_rename_popup(profile_frame, popup)
     )
-    rename_button.pack(pady=(10, 20))
+    rename_button.pack(pady=(5, 5))
+
+    # Add Proxy Settings button
+    proxy_button = ctk.CTkButton(
+        popup,
+        text="Add Proxy Settings",
+        command=lambda: show_proxy_popup(profile_frame, popup)
+    )
+    proxy_button.pack(pady=(5, 10))
 
     popup.attributes("-topmost", True)
 
+
+def show_proxy_popup(profile_frame, settings_menu):
+    settings_menu.destroy()
+
+    proxy_popup = ctk.CTkToplevel()
+    proxy_popup.title("Proxy Settings")
+    proxy_popup.geometry("300x200")
+    proxy_popup.resizable(False, False)
+
+    main_window = profile_frame.winfo_toplevel()
+    main_window_x = main_window.winfo_x()
+    main_window_y = main_window.winfo_y()
+    main_window_width = main_window.winfo_width()
+    main_window_height = main_window.winfo_height()
+    proxy_popup.geometry(f"+{main_window_x + (main_window_width // 2) - 150}+{main_window_y + (main_window_height // 2) - 100}")
 def show_rename_popup(profile_frame, settings_menu):
     settings_menu.destroy()
 
