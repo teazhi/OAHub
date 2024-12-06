@@ -90,7 +90,7 @@ def show_proxy_popup(profile_frame, settings_menu):
 
     proxy_popup = ctk.CTkToplevel()
     proxy_popup.title("Proxy Settings")
-    proxy_popup.geometry("300x200")
+    proxy_popup.geometry("300x250")
     proxy_popup.resizable(False, False)
 
     main_window = profile_frame.winfo_toplevel()
@@ -98,11 +98,10 @@ def show_proxy_popup(profile_frame, settings_menu):
     main_window_y = main_window.winfo_y()
     main_window_width = main_window.winfo_width()
     main_window_height = main_window.winfo_height()
-    proxy_popup.geometry(f"+{main_window_x + (main_window_width // 2) - 150}+{main_window_y + (main_window_height // 2) - 100}")
+    proxy_popup.geometry(f"+{main_window_x + (main_window_width // 2) - 150}+{main_window_y + (main_window_height // 2) - 125}")
 
     proxy_popup.configure(bg="#333333")
 
-    # Proxy Entry Field
     proxy_entry = ctk.CTkEntry(
         proxy_popup, 
         width=250, 
@@ -111,7 +110,7 @@ def show_proxy_popup(profile_frame, settings_menu):
         border_width=2,
         corner_radius=8
     )
-    proxy_entry.pack(pady=(30, 10))
+    proxy_entry.pack(pady=(20, 10))
     proxy_entry.focus_set()
 
     error_label = ctk.CTkLabel(
@@ -127,7 +126,16 @@ def show_proxy_popup(profile_frame, settings_menu):
         text="Save Proxy",
         command=lambda: validate_proxy(proxy_entry.get(), error_label, proxy_popup)
     )
-    save_button.pack(pady=(10, 20))
+    save_button.pack(pady=(5, 10))
+
+    delete_button = ctk.CTkButton(
+        proxy_popup,
+        text="Delete Proxy",
+        fg_color="#ff5555",
+        hover_color="#cc4444",
+        command=lambda: delete_proxy(profile_frame, error_label, proxy_popup)
+    )
+    delete_button.pack(pady=(5, 10))
 
     close_button = ctk.CTkButton(
         proxy_popup,
@@ -135,6 +143,19 @@ def show_proxy_popup(profile_frame, settings_menu):
         command=proxy_popup.destroy
     )
     close_button.pack(pady=(5, 10))
+
+
+def delete_proxy(profile_frame, error_label, proxy_popup):
+    try:
+        proxy_path = os.path.join(profile_frame.folder_path, "proxy.txt")
+        if os.path.exists(proxy_path):
+            os.remove(proxy_path)
+            error_label.configure(text="Proxy deleted successfully.", text_color="green")
+        else:
+            error_label.configure(text="No proxy to delete.", text_color="yellow")
+    except Exception as e:
+        error_label.configure(text=f"Error: {str(e)}", text_color="red")
+
 
 
 def validate_proxy(proxy_string, error_label, proxy_popup):
