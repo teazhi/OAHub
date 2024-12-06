@@ -99,6 +99,57 @@ def show_proxy_popup(profile_frame, settings_menu):
     main_window_width = main_window.winfo_width()
     main_window_height = main_window.winfo_height()
     proxy_popup.geometry(f"+{main_window_x + (main_window_width // 2) - 150}+{main_window_y + (main_window_height // 2) - 100}")
+
+    proxy_popup.configure(bg="#333333")
+
+    # Proxy Entry Field
+    proxy_entry = ctk.CTkEntry(
+        proxy_popup, 
+        width=250, 
+        placeholder_text="Enter proxy string...",
+        font=("Roboto", 12),
+        border_width=2,
+        corner_radius=8
+    )
+    proxy_entry.pack(pady=(30, 10))
+    proxy_entry.focus_set()
+
+    error_label = ctk.CTkLabel(
+        proxy_popup,
+        text="",
+        font=("Roboto", 10),
+        text_color="red"
+    )
+    error_label.pack(pady=(5, 5))
+
+    save_button = ctk.CTkButton(
+        proxy_popup,
+        text="Save Proxy",
+        command=lambda: validate_proxy(proxy_entry.get(), error_label, proxy_popup)
+    )
+    save_button.pack(pady=(10, 20))
+
+    close_button = ctk.CTkButton(
+        proxy_popup,
+        text="Close",
+        command=proxy_popup.destroy
+    )
+    close_button.pack(pady=(5, 10))
+
+
+def validate_proxy(proxy_string, error_label, proxy_popup):
+    if not proxy_string.strip():
+        error_label.configure(text="Error: Proxy string cannot be empty.")
+        return
+
+    # Placeholder: Handle proxy string
+    print(f"Proxy string entered: {proxy_string}")
+
+    # Close the popup after saving the proxy
+    proxy_popup.destroy()
+
+
+
 def show_rename_popup(profile_frame, settings_menu):
     settings_menu.destroy()
 
